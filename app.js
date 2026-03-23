@@ -88,6 +88,7 @@
     // hide logout button when running in local (no-Supabase) mode
     const logoutBtn = document.querySelector('.bottom-nav button[onclick="authLogout()"]');
     if (logoutBtn) logoutBtn.style.display = _configured ? '' : 'none';
+    const lb = document.getElementById('localModeBanner'); if (lb) lb.style.display = (!_configured && !show) ? 'block' : 'none';
   }
 
   function showAuthError(msg) {
@@ -152,12 +153,16 @@
   }
   function getData()   { return ls(DATA_KEY, {}); }
   function saveData(d) { lsSet(DATA_KEY, d); }
-  function getSettings() { return Object.assign({ weekly: 14000, green: 200, red: 2000 }, ls(SET_KEY, {})); }
+  function getSettings() { return Object.assign({ weekly: 14000, green: 200, red: 2000, macroP: 150, macroC: 200, macroF: 65, useMetric: false }, ls(SET_KEY, {})); }
   function saveSettings() {
     lsSet(SET_KEY, {
-      weekly: parseInt(document.getElementById('sWeekly').value) || 14000,
-      green:  parseInt(document.getElementById('sGreen').value)  || 200,
-      red:    parseInt(document.getElementById('sRed').value)    || 2000,
+      weekly:    parseInt(document.getElementById('sWeekly').value) || 14000,
+      green:     parseInt(document.getElementById('sGreen').value)  || 200,
+      red:       parseInt(document.getElementById('sRed').value)    || 2000,
+      macroP:    parseInt(document.getElementById('sMacroP').value) || 150,
+      macroC:    parseInt(document.getElementById('sMacroC').value) || 200,
+      macroF:    parseInt(document.getElementById('sMacroF').value) || 65,
+      useMetric: document.getElementById('sMetric').checked,
     });
     refreshAll();
   }
@@ -207,6 +212,8 @@
 
   /* ── HELPERS ── */
   function makeKey(y, m, d) { return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+  function isMetric() { return !!getSettings().useMetric; }
+  function wt(lbs) { return isMetric() ? (lbs*0.453592).toFixed(1)+' kg' : lbs+' lbs'; }
   function colorFor(cal, isRefeed) {
     if (isRefeed) return 'refeed';
     const s = getSettings();
@@ -237,12 +244,39 @@
     const isRF = !!refeed[key];
 
     const el = document.getElementById('todayStatus');
+    const s  = getSettings();
     if (cal !== undefined) {
       const color = colorFor(cal, isRF);
       const hex = { green: '#34d399', yellow: '#fbbf24', red: '#f87171', refeed: '#a5b4fc' }[color] || 'var(--cyan)';
       let html = `<div class="today-big-cal" style="color:${hex}">${cal.toLocaleString()}</div>
         <div class="today-big-sub">calories logged today${isRF ? ' · refeed 🔄' : ''}</div>`;
-      if (mac) html += `<div class="today-macros-display">P ${mac.p}g · C ${mac.c}g · F ${mac.f}g</div>`;
+
+      const dailyGoal = Math.round(s.weekly / 7);
+      const pct = dailyGoal > 0 ? Math.min((cal / dailyGoal) * 100, 100) : 0;
+      const isOver = cal > dailyGoal;
+      const diff = Math.abs(cal - dailyGoal);
+      const barColor = isOver ? 'linear-gradient(90deg,#ef4444,#f87171)' : 'linear-gradient(90deg,#10b981,#34d399)';
+      const remainTxt = isOver ? `<span style="color:#f87171;font-size:0.72rem">${diff.toLocaleString()} cal over daily goal</span>` : `<span style="color:#34d399;font-size:0.72rem">${diff.toLocaleString()} cal remaining</span>`;
+      html += `<div style="margin:10px 0 4px;font-size:0.72rem;color:var(--muted)">${cal.toLocaleString()} / ${dailyGoal.toLocaleString()} cal today</div>`;
+      html += `<div class="bar-wrap" style="margin-bottom:4px"><div class="bar-fill" style="width:${pct.toFixed(1)}%;background:${barColor}">${Math.round(pct)}%</div></div>`;
+      html += `<div style="margin-bottom:6px">${remainTxt}</div>`;
+
+      if (mac) {
+        const macGoals = { p: s.macroP, c: s.macroC, f: s.macroF };
+        const macColors = { p: '#f472b6', c: '#60a5fa', f: '#fbbf24' };
+        const macLabels = { p: 'P', c: 'C', f: 'F' };
+        html += `<div class="today-macros-display" style="margin-top:8px">P ${mac.p}g · C ${mac.c}g · F ${mac.f}g</div>`;
+        html += `<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">`;
+        for (const k of ['p','c','f']) {
+          const logged = mac[k] || 0;
+          const goal = macGoals[k];
+          const mp = goal > 0 ? Math.min((logged / goal) * 100, 100) : 0;
+          html += `<div style="font-size:0.72rem;color:var(--muted2)">${macLabels[k]}: ${logged}g / ${goal}g</div>`;
+          html += `<div class="bar-wrap" style="height:10px;margin-bottom:2px"><div class="bar-fill" style="width:${mp.toFixed(1)}%;background:${macColors[k]};min-width:0;font-size:0"></div></div>`;
+        }
+        html += `</div>`;
+      }
+
       if (note) html += `<div class="today-note-display">"${escHtml(note)}"</div>`;
       html += `<button class="btn-today-edit" onclick="openModal(${today.getFullYear()}, ${today.getMonth()}, ${today.getDate()})">Edit today's entry →</button>`;
       el.innerHTML = html;
@@ -267,10 +301,12 @@
       const isRF = !!refeed[key];
       const isT  = i === 0;
 
+      const isPastDay = !isT && d < today;
       let cc = 'recent-cell' + (isT ? ' today' : '');
       if (cal !== undefined) cc += ' ' + colorFor(cal, isRF);
+      else if (isPastDay) cc += ' nodata';
 
-      const calStr = cal !== undefined ? (cal >= 1000 ? (cal/1000).toFixed(1)+'k' : String(cal)) : '—';
+      const calStr = cal !== undefined ? (cal >= 1000 ? (cal/1000).toFixed(1)+'k' : String(cal)) : (isPastDay ? '·' : '—');
       html += `<div class="${cc}" onclick="openModal(${d.getFullYear()}, ${d.getMonth()}, ${d.getDate()})">
         <div class="rc-dow">${DAYS_SHORT[d.getDay()]}</div>
         <div class="rc-dom">${d.getDate()}</div>
@@ -278,6 +314,20 @@
       </div>`;
     }
     document.getElementById('recentStrip').innerHTML = html;
+  }
+
+  /* ── SHARED LOG HELPER ── */
+  function _doLog(dateVal, calVal, p, c, f) {
+    if (!dateVal || calVal === '') return false;
+    const [y, m, d] = dateVal.split('-').map(Number);
+    const key  = makeKey(y, m-1, d);
+    const data = getData();
+    data[key]  = parseInt(calVal, 10);
+    saveData(data);
+    if (p || c || f) { const macros = ls(MACROS_KEY, {}); macros[key] = { p, c, f }; lsSet(MACROS_KEY, macros); }
+    refreshAll();
+    maybeShame(parseInt(calVal, 10), key);
+    return true;
   }
 
   /* ── QUICK LOG (Home page) ── */
@@ -293,26 +343,15 @@
   function quickLog() {
     const dateVal = document.getElementById('quickDate').value;
     const calVal  = document.getElementById('quickCal').value;
-    if (!dateVal || calVal === '') return;
-
-    const [y, m, d] = dateVal.split('-').map(Number);
-    const key  = makeKey(y, m-1, d);
-    const data = getData();
-    data[key]  = parseInt(calVal, 10);
-    saveData(data);
-
     const p = parseFloat(document.getElementById('quickProtein').value) || 0;
     const c = parseFloat(document.getElementById('quickCarbs').value)   || 0;
     const f = parseFloat(document.getElementById('quickFat').value)     || 0;
-    if (p || c || f) { const macros = ls(MACROS_KEY, {}); macros[key] = { p, c, f }; lsSet(MACROS_KEY, macros); }
-
+    if (!_doLog(dateVal, calVal, p, c, f)) return;
     document.getElementById('quickCal').value     = '';
     document.getElementById('quickProtein').value = '';
     document.getElementById('quickCarbs').value   = '';
     document.getElementById('quickFat').value     = '';
     document.getElementById('quickMacroPreview').textContent = '—';
-    refreshAll();
-    maybeShame(parseInt(calVal, 10), key);
   }
 
   /* ── STATS BAR ── */
@@ -405,9 +444,11 @@
       const hasNote  = !!notes[key];
       const isRefeed = !!refeed[key];
 
+      const isPast = new Date(viewYear, viewMonth, d) < today && !isToday;
       const el = document.createElement('div');
       el.className = 'cal-cell' + (isToday ? ' today' : '');
       if (cal !== undefined) el.classList.add(colorFor(cal, isRefeed));
+      else if (isPast) el.classList.add('nodata');
 
       const calStr = cal !== undefined ? (cal >= 1000 ? (cal/1000).toFixed(1)+'k' : cal) : '';
       el.innerHTML = `<span class="cell-num">${d}</span>` +
@@ -463,23 +504,13 @@
   function logCalories() {
     const dateVal = document.getElementById('logDate').value;
     const calVal  = document.getElementById('logCal').value;
-    if (!dateVal || calVal === '') return;
-
-    const [y, m, d] = dateVal.split('-').map(Number);
-    const key  = makeKey(y, m-1, d);
-    const data = getData();
-    data[key]  = parseInt(calVal, 10);
-    saveData(data);
-
     const p = parseFloat(document.getElementById('logProtein').value) || 0;
     const c = parseFloat(document.getElementById('logCarbs').value)   || 0;
     const f = parseFloat(document.getElementById('logFat').value)     || 0;
-    if (p||c||f) { const macros=ls(MACROS_KEY,{}); macros[key]={p,c,f}; lsSet(MACROS_KEY,macros); }
-
+    if (!_doLog(dateVal, calVal, p, c, f)) return;
     document.getElementById('logCal').value=''; document.getElementById('logProtein').value='';
     document.getElementById('logCarbs').value=''; document.getElementById('logFat').value='';
     document.getElementById('macroCalcPreview').textContent='—';
-    refreshAll();
   }
 
   /* ── PRESETS ── */
@@ -487,10 +518,14 @@
     const name = document.getElementById('pName').value.trim();
     const cal  = parseInt(document.getElementById('pCal').value);
     if (!name || !cal || cal < 1) return;
+    const p = parseFloat(document.getElementById('pPresetP').value) || 0;
+    const c = parseFloat(document.getElementById('pPresetC').value) || 0;
+    const f = parseFloat(document.getElementById('pPresetF').value) || 0;
     const presets = ls(PRESETS_KEY, []);
-    presets.push({ name, cal });
+    presets.push({ name, cal, p, c, f });
     lsSet(PRESETS_KEY, presets);
     document.getElementById('pName').value=''; document.getElementById('pCal').value='';
+    document.getElementById('pPresetP').value=''; document.getElementById('pPresetC').value=''; document.getElementById('pPresetF').value='';
     renderPresets();
   }
 
@@ -501,19 +536,29 @@
     renderPresets();
   }
 
-  function applyPreset(cal) { document.getElementById('logCal').value=cal; document.getElementById('logCal').focus(); }
+  function applyPreset(cal, p, c, f) {
+    document.getElementById('logCal').value=cal;
+    document.getElementById('logProtein').value=p||'';
+    document.getElementById('logCarbs').value=c||'';
+    document.getElementById('logFat').value=f||'';
+    calcMacros();
+    document.getElementById('logCal').focus();
+  }
 
   function renderPresets() {
     const presets = ls(PRESETS_KEY, []);
     const chips = document.getElementById('presetChips');
     chips.innerHTML = presets.length === 0
       ? '<span style="font-size:0.78rem;color:var(--muted)">No presets yet — add one below</span>'
-      : presets.map(p => `<div class="preset-chip" onclick="applyPreset(${p.cal})">${escHtml(p.name)}<span class="preset-chip-cal">${p.cal.toLocaleString()}</span></div>`).join('');
+      : presets.map(p => `<div class="preset-chip" onclick="applyPreset(${p.cal},${p.p||0},${p.c||0},${p.f||0})">${escHtml(p.name)}<span class="preset-chip-cal">${p.cal.toLocaleString()}</span></div>`).join('');
 
     const list = document.getElementById('presetList');
     list.innerHTML = presets.length === 0
       ? '<div class="preset-empty">No presets yet.</div>'
-      : presets.map((p,i) => `<div class="preset-list-item"><span class="preset-item-name">${escHtml(p.name)}</span><span class="preset-item-cal">${p.cal.toLocaleString()} cal</span><button class="btn-icon" onclick="deletePreset(${i})">✕</button></div>`).join('');
+      : presets.map((p,i) => {
+          const macStr = (p.p||p.c||p.f) ? `<span style="font-size:0.72rem;color:var(--muted2);margin-left:6px">P${p.p||0}g C${p.c||0}g F${p.f||0}g</span>` : '';
+          return `<div class="preset-list-item"><span class="preset-item-name">${escHtml(p.name)}</span>${macStr}<span class="preset-item-cal">${p.cal.toLocaleString()} cal</span><button class="btn-icon" onclick="deletePreset(${i})">✕</button></div>`;
+        }).join('');
   }
 
   /* ── WEIGHT LOG ── */
@@ -523,7 +568,8 @@
     if (!dateVal || !wtVal) return;
     const [y,m,d] = dateVal.split('-').map(Number);
     const weights = ls(WEIGHTS_KEY, {});
-    weights[makeKey(y, m-1, d)] = parseFloat(wtVal);
+    const rawVal = parseFloat(wtVal);
+    weights[makeKey(y, m-1, d)] = isMetric() ? rawVal / 0.453592 : rawVal;
     lsSet(WEIGHTS_KEY, weights);
     document.getElementById('wtVal').value = '';
     renderWeightChart();
@@ -540,7 +586,7 @@
     const diff   = Math.abs(latest - calcWt);
     if (diff >= 10) {
       banner.style.display='block';
-      banner.textContent=`Your logged weight (${latest} lbs) is ${diff.toFixed(1)} lbs from your calculator starting weight (${calcWt} lbs). Consider re-running the Goal Calculator.`;
+      banner.textContent=`Your logged weight (${wt(latest)}) is ${wt(diff)} from your calculator starting weight (${wt(calcWt)}). Consider re-running the Goal Calculator.`;
     } else { banner.style.display='none'; }
   }
 
@@ -560,11 +606,18 @@
     const xS=d=>P.l+((d.getTime()-minD)/((maxD-minD)||1))*pw;
     const yS=v=>P.t+((maxV-v)/(maxV-minV))*ph;
 
+    const metric = isMetric();
+    const unit = metric ? 'kg' : 'lbs';
+    const dispVal = v => metric ? parseFloat((v*0.453592).toFixed(1)) : v;
+    const minVD = dispVal(minV), maxVD = dispVal(maxV);
+
     let html='<defs><linearGradient id="wGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#8b5cf6"/><stop offset="100%" stop-color="#00d4ff"/></linearGradient></defs>';
+    html+=`<text transform="rotate(-90)" x="${-(P.t+ph/2)}" y="12" text-anchor="middle" fill="#6b7280" font-size="10">${unit}</text>`;
     for (let i=0;i<=4;i++) {
       const v=minV+((maxV-minV)*(4-i)/4), y=P.t+(i/4)*ph;
+      const lbl=metric ? (v*0.453592).toFixed(1) : Math.round(v);
       html+=`<line x1="${P.l}" y1="${y.toFixed(1)}" x2="${W-P.r}" y2="${y.toFixed(1)}" stroke="#1a1535" stroke-width="1"/>`;
-      html+=`<text x="${P.l-5}" y="${(y+4).toFixed(1)}" text-anchor="end" fill="#475569" font-size="11">${Math.round(v)}</text>`;
+      html+=`<text x="${P.l-5}" y="${(y+4).toFixed(1)}" text-anchor="end" fill="#6b7280" font-size="11">${lbl}</text>`;
     }
     const goalEl=document.getElementById('rGoalWt');
     if (goalEl && goalEl.textContent!=='—') {
@@ -572,16 +625,19 @@
       if (gw>=minV && gw<=maxV) {
         const gy=yS(gw);
         html+=`<line x1="${P.l}" y1="${gy.toFixed(1)}" x2="${W-P.r}" y2="${gy.toFixed(1)}" stroke="rgba(0,212,255,0.38)" stroke-width="1.5" stroke-dasharray="5,4"/>`;
-        html+=`<text x="${P.l+6}" y="${(gy-4).toFixed(1)}" fill="rgba(0,212,255,0.5)" font-size="10">Goal: ${gw} lbs</text>`;
+        html+=`<text x="${P.l+6}" y="${(gy-4).toFixed(1)}" fill="rgba(0,212,255,0.5)" font-size="10">Goal: ${dispVal(gw)} ${unit}</text>`;
       }
     }
     const pts=entries.map(e=>`${xS(e.date).toFixed(1)},${yS(e.val).toFixed(1)}`).join(' ');
     const areaPts=`${P.l},${(P.t+ph).toFixed(1)} ${pts} ${xS(entries[entries.length-1].date).toFixed(1)},${(P.t+ph).toFixed(1)}`;
     html+=`<polygon points="${areaPts}" fill="rgba(139,92,246,0.07)"/>`;
     html+=`<polyline points="${pts}" fill="none" stroke="url(#wGrad)" stroke-width="2.5"/>`;
-    entries.forEach(e=>{ html+=`<circle cx="${xS(e.date).toFixed(1)}" cy="${yS(e.val).toFixed(1)}" r="4" fill="#00d4ff" stroke="#07071a" stroke-width="2"/>`; });
+    entries.forEach(e=>{
+      const titleTxt=`${e.date.toLocaleDateString()}\n${wt(e.val)}`;
+      html+=`<circle cx="${xS(e.date).toFixed(1)}" cy="${yS(e.val).toFixed(1)}" r="4" fill="#00d4ff" stroke="#07071a" stroke-width="2"><title>${titleTxt}</title></circle>`;
+    });
     const step=Math.max(1,Math.floor(entries.length/6));
-    for (let i=0;i<entries.length;i+=step) { const e=entries[i]; html+=`<text x="${xS(e.date).toFixed(1)}" y="${H-4}" text-anchor="middle" fill="#475569" font-size="10">${e.date.getMonth()+1}/${e.date.getDate()}</text>`; }
+    for (let i=0;i<entries.length;i+=step) { const e=entries[i]; html+=`<text x="${xS(e.date).toFixed(1)}" y="${H-4}" text-anchor="middle" fill="#6b7280" font-size="10">${e.date.getMonth()+1}/${e.date.getDate()}</text>`; }
     svg.innerHTML=html;
   }
 
@@ -600,16 +656,61 @@
     const barW=pw/30-2;
 
     let html='';
-    for (let i=0;i<=3;i++) { const v=maxCal*(3-i)/3, y=P.t+(i/3)*ph; const lbl=v>=1000?(v/1000).toFixed(1)+'k':Math.round(v); html+=`<line x1="${P.l}" y1="${y.toFixed(1)}" x2="${W-P.r}" y2="${y.toFixed(1)}" stroke="#1a1535" stroke-width="1"/><text x="${P.l-5}" y="${(y+4).toFixed(1)}" text-anchor="end" fill="#475569" font-size="11">${lbl}</text>`; }
+    for (let i=0;i<=3;i++) { const v=maxCal*(3-i)/3, y=P.t+(i/3)*ph; const lbl=v>=1000?(v/1000).toFixed(1)+'k':Math.round(v); html+=`<line x1="${P.l}" y1="${y.toFixed(1)}" x2="${W-P.r}" y2="${y.toFixed(1)}" stroke="#1a1535" stroke-width="1"/><text x="${P.l-5}" y="${(y+4).toFixed(1)}" text-anchor="end" fill="#6b7280" font-size="11">${lbl}</text>`; }
     const goalY=yS(dailyGoal);
     html+=`<line x1="${P.l}" y1="${goalY.toFixed(1)}" x2="${W-P.r}" y2="${goalY.toFixed(1)}" stroke="rgba(0,212,255,0.33)" stroke-width="1.5" stroke-dasharray="5,3"/>`;
     html+=`<text x="${W-P.r-2}" y="${(goalY-4).toFixed(1)}" text-anchor="end" fill="rgba(0,212,255,0.48)" font-size="10">Daily goal</text>`;
-    days.forEach((day,i)=>{ const x=P.l+i*(pw/30); if (day.cal!==undefined) { const color=day.refeed?'rgba(108,122,224,0.7)':day.cal<=s.green?'rgba(16,185,129,0.72)':day.cal>s.red?'rgba(239,68,68,0.72)':'rgba(245,158,11,0.72)'; const barH=Math.max(2,(day.cal/maxCal)*ph); html+=`<rect x="${(x+1).toFixed(1)}" y="${(P.t+ph-barH).toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" fill="${color}" rx="2"/>`; } });
+    days.forEach((day,i)=>{ const x=P.l+i*(pw/30); if (day.cal!==undefined) { const color=day.refeed?'rgba(108,122,224,0.7)':day.cal<=s.green?'rgba(16,185,129,0.72)':day.cal>s.red?'rgba(239,68,68,0.72)':'rgba(245,158,11,0.72)'; const barH=Math.max(2,(day.cal/maxCal)*ph); const d=day.date; html+=`<rect x="${(x+1).toFixed(1)}" y="${(P.t+ph-barH).toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" fill="${color}" rx="2"><title>${d.getMonth()+1}/${d.getDate()}: ${day.cal.toLocaleString()} cal</title></rect>`; } });
     const avgPts=[];
     for (let i=0;i<30;i++) { const slice=days.slice(Math.max(0,i-6),i+1).filter(d=>d.cal!==undefined); if (slice.length>=3) { const avg=slice.reduce((acc,d)=>acc+d.cal,0)/slice.length; const x=P.l+i*(pw/30)+barW/2; avgPts.push(`${x.toFixed(1)},${yS(avg).toFixed(1)}`); } }
     if (avgPts.length>1) { html+=`<polyline points="${avgPts.join(' ')}" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.5"/><text x="${W-P.r-2}" y="${H-4}" text-anchor="end" fill="rgba(255,255,255,0.3)" font-size="10">7-day avg</text>`; }
     for (let i=0;i<30;i+=5) { const d=days[i].date; const x=P.l+i*(pw/30); html+=`<text x="${(x+barW/2).toFixed(1)}" y="${H-4}" text-anchor="middle" fill="#475569" font-size="10">${d.getMonth()+1}/${d.getDate()}</text>`; }
     document.getElementById('calSvg').innerHTML=html;
+  }
+
+  /* ── MACRO CHART ── */
+  function renderMacroChart() {
+    const macros = ls(MACROS_KEY, {});
+    const today  = new Date(); today.setHours(0,0,0,0);
+    const days   = [];
+    for (let i=29;i>=0;i--) { const d=new Date(today); d.setDate(today.getDate()-i); const key=makeKey(d.getFullYear(),d.getMonth(),d.getDate()); days.push({date:d,mac:macros[key]}); }
+
+    const W=800,H=150, P={l:48,r:12,t:14,b:26};
+    const pw=W-P.l-P.r, ph=H-P.t-P.b;
+    const barW=pw/30-2;
+
+    const totals = days.map(d => d.mac ? (d.mac.p||0)*4 + (d.mac.c||0)*4 + (d.mac.f||0)*9 : 0);
+    const maxTotal = Math.max(...totals, 1);
+    const scale = (maxTotal * 1.1);
+    const yS = v => P.t + ((scale-v)/scale)*ph;
+
+    let html='';
+    for (let i=0;i<=3;i++) { const v=scale*(3-i)/3, y=P.t+(i/3)*ph; const lbl=v>=1000?(v/1000).toFixed(1)+'k':Math.round(v); html+=`<line x1="${P.l}" y1="${y.toFixed(1)}" x2="${W-P.r}" y2="${y.toFixed(1)}" stroke="#1a1535" stroke-width="1"/><text x="${P.l-5}" y="${(y+4).toFixed(1)}" text-anchor="end" fill="#6b7280" font-size="11">${lbl}</text>`; }
+
+    days.forEach((day,i) => {
+      if (!day.mac) return;
+      const x = P.l + i*(pw/30);
+      const pCal = (day.mac.p||0)*4;
+      const cCal = (day.mac.c||0)*4;
+      const fCal = (day.mac.f||0)*9;
+      const total = pCal + cCal + fCal;
+      if (total === 0) return;
+      const totalH = Math.max(2, (total/scale)*ph);
+      const baseY  = P.t + ph - totalH;
+      const pH = totalH * (pCal/total);
+      const cH = totalH * (cCal/total);
+      const fH = totalH - pH - cH;
+      const dateStr = `${day.date.getMonth()+1}/${day.date.getDate()}`;
+      let curY = baseY;
+      html+=`<rect x="${(x+1).toFixed(1)}" y="${curY.toFixed(1)}" width="${barW.toFixed(1)}" height="${pH.toFixed(1)}" fill="rgba(244,114,182,0.8)" rx="0"><title>${dateStr}: P ${day.mac.p||0}g (${pCal} cal)</title></rect>`;
+      curY += pH;
+      html+=`<rect x="${(x+1).toFixed(1)}" y="${curY.toFixed(1)}" width="${barW.toFixed(1)}" height="${cH.toFixed(1)}" fill="rgba(96,165,250,0.8)" rx="0"><title>${dateStr}: C ${day.mac.c||0}g (${cCal} cal)</title></rect>`;
+      curY += cH;
+      html+=`<rect x="${(x+1).toFixed(1)}" y="${curY.toFixed(1)}" width="${barW.toFixed(1)}" height="${fH.toFixed(1)}" fill="rgba(251,191,36,0.8)" rx="0"><title>${dateStr}: F ${day.mac.f||0}g (${fCal} cal)</title></rect>`;
+    });
+
+    for (let i=0;i<30;i+=5) { const d=days[i].date; const x=P.l+i*(pw/30); html+=`<text x="${(x+barW/2).toFixed(1)}" y="${H-4}" text-anchor="middle" fill="#6b7280" font-size="10">${d.getMonth()+1}/${d.getDate()}</text>`; }
+    document.getElementById('macroSvg').innerHTML=html;
   }
 
   /* ── HISTORY ── */
@@ -621,7 +722,27 @@
     const macros  = ls(MACROS_KEY, {});
     const search  = (document.getElementById('histSearch').value||'').trim().toLowerCase();
     const allKeys = [...new Set([...Object.keys(data),...Object.keys(weights)])].sort().reverse();
-    const filtered = search ? allKeys.filter(k=>k.includes(search)) : allKeys;
+    let filtered;
+    if (!search) {
+      filtered = allKeys;
+    } else {
+      const calOp = search.match(/^(>=|<=|>|<|=)(\d+)$/);
+      if (calOp) {
+        const [,op,val] = calOp; const n = parseInt(val);
+        filtered = allKeys.filter(k => {
+          const cal = data[k];
+          if (cal === undefined) return false;
+          if (op==='>') return cal > n;
+          if (op==='>=') return cal >= n;
+          if (op==='<') return cal < n;
+          if (op==='<=') return cal <= n;
+          if (op==='=') return cal === n;
+          return false;
+        });
+      } else {
+        filtered = allKeys.filter(k => k.includes(search) || (notes[k]||'').toLowerCase().includes(search));
+      }
+    }
 
     const el = document.getElementById('historyContent');
     if (filtered.length===0) { el.innerHTML='<div class="history-empty">No data found. Start tracking to build your history.</div>'; return; }
@@ -706,6 +827,42 @@
     const a=Object.assign(document.createElement('a'),{href:url,download:'calorie_tracker.csv'}); document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   }
 
+  /* ── IMPORT CSV ── */
+  function importCSV() {
+    document.getElementById('importInput').click();
+  }
+  document.getElementById('importInput').addEventListener('change', function(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      const lines = ev.target.result.split(/\r?\n/).slice(1);
+      const data = getData(), notes = ls(NOTES_KEY,{}), refeed = ls(REFEED_KEY,{}), weights = ls(WEIGHTS_KEY,{}), macros = ls(MACROS_KEY,{});
+      let count = 0;
+      lines.forEach(line => {
+        if (!line.trim()) return;
+        const cols = []; let cur = '', inQ = false;
+        for (let ch of line) { if (ch==='"') { inQ=!inQ; } else if (ch===',' && !inQ) { cols.push(cur); cur=''; } else { cur+=ch; } }
+        cols.push(cur);
+        const [dateStr,calStr,pStr,cStr,fStr,wtStr,refeedStr,...noteParts] = cols;
+        const key = (dateStr||'').trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+        if (calStr.trim()) { const cal=parseInt(calStr); if (!isNaN(cal)) data[key]=cal; }
+        const p=parseFloat(pStr),c=parseFloat(cStr),f=parseFloat(fStr);
+        if (!isNaN(p)||!isNaN(c)||!isNaN(f)) macros[key]={p:p||0,c:c||0,f:f||0};
+        if (wtStr.trim()) { const wtv=parseFloat(wtStr); if (!isNaN(wtv)) weights[key]=wtv; }
+        if ((refeedStr||'').trim().toLowerCase()==='yes') refeed[key]=true;
+        const note=noteParts.join(',').trim();
+        if (note) notes[key]=note;
+        count++;
+      });
+      saveData(data); lsSet(NOTES_KEY,notes); lsSet(REFEED_KEY,refeed); lsSet(WEIGHTS_KEY,weights); lsSet(MACROS_KEY,macros);
+      refreshAll();
+      alert('Imported ' + count + ' rows!');
+      e.target.value='';
+    };
+    reader.readAsText(file);
+  });
+
   /* ── GOAL CALCULATOR ── */
   function saveCalcProfile() {
     lsSet(CALC_KEY, { mode:calcMode, sex:document.getElementById('cSex').value, age:document.getElementById('cAge').value, ft:document.getElementById('cFt').value, inch:document.getElementById('cIn').value, weight:document.getElementById('cWeight').value, activity:document.getElementById('cActivity').value, pace:document.getElementById('cPace').value, goalWeight:document.getElementById('cGoalWeight').value, curBF:document.getElementById('cCurBF').value, goalBF:document.getElementById('cGoalBF').value });
@@ -769,8 +926,8 @@
 
     const tolose=weightLbs-goalWeightLbs, dailyCal=Math.round(tdee-deficit);
     const weeklyCal=dailyCal*7, weeklyDeficit=deficit*7;
-    const totalDeficit=Math.round(Math.max(tolose,0)*3500);
-    const weeks=tolose>0?Math.round(tolose/((deficit*7)/3500)):0;
+    const totalDeficit=Math.round(Math.abs(tolose)*3500);
+    const weeks=deficit!==0?Math.round(Math.abs(tolose)/((Math.abs(deficit)*7)/3500)):0;
     const protein=Math.round((leanLbs!==null?leanLbs:goalWeightLbs)*0.8);
 
     document.getElementById('rBMR').textContent=Math.round(bmr).toLocaleString();
@@ -781,12 +938,13 @@
     document.getElementById('rBMISub').textContent=bmiCat;
     document.getElementById('rProtein').textContent=protein+'g';
     document.getElementById('rTarget').textContent=dailyCal.toLocaleString();
+    document.getElementById('rTargetSub').textContent=deficit<0?'cal / day to gain weight':deficit===0?'cal / day to maintain':'cal / day to lose weight';
     document.getElementById('rWeekly').textContent=weeklyCal.toLocaleString();
     document.getElementById('rWeeklyDeficit').textContent=weeklyDeficit.toLocaleString();
     document.getElementById('rGoalWt').textContent=goalWeightLbs.toFixed(1);
     document.getElementById('rTime').textContent=weeks>0?weeks:'—';
     document.getElementById('rTimeSub').textContent=weeks>52?`weeks (~${(weeks/4.33).toFixed(1)} mo)`:weeks>0?'weeks':'';
-    document.getElementById('rTotalDeficit').textContent=tolose>0?totalDeficit.toLocaleString():'—';
+    document.getElementById('rTotalDeficit').textContent=Math.abs(tolose)>0?totalDeficit.toLocaleString():'—';
 
     const showBComp=calcMode==='bf'&&fatLbs!==null;
     document.getElementById('bcompLbl').style.display=showBComp?'':'none';
@@ -795,7 +953,9 @@
 
     const noteEl=document.getElementById('calcNote'); const msgs=[];
     if (bfNote) msgs.push(bfNote);
-    if (dailyCal<1200) { msgs.push('Daily target is below 1,200 cal. Consider a gentler pace to protect your metabolism.'); noteEl.className='calc-note warn'; }
+    if (deficit<0) msgs.push('Surplus mode: you\'re aiming to gain weight.');
+    if (deficit===0) msgs.push('Maintenance mode: your target matches your estimated daily burn.');
+    if (dailyCal<1200 && deficit>0) { msgs.push('Daily target is below 1,200 cal. Consider a gentler pace to protect your metabolism.'); noteEl.className='calc-note warn'; }
     else noteEl.className='calc-note';
     msgs.push('Uses Mifflin-St Jeor. Protein based on 0.8g/lb lean mass. 1 lb fat ≈ 3,500 cal. Results vary by individual.');
     noteEl.textContent=msgs.join(' ');
@@ -822,6 +982,7 @@
     updateWeekly();
     updateStatsBar();
     renderCalChart();
+    renderMacroChart();
     renderWeightChart();
     renderPresets();
     renderHistory();
@@ -841,6 +1002,15 @@
     document.getElementById('sWeekly').value = s.weekly;
     document.getElementById('sGreen').value  = s.green;
     document.getElementById('sRed').value    = s.red;
+    document.getElementById('sMacroP').value = s.macroP;
+    document.getElementById('sMacroC').value = s.macroC;
+    document.getElementById('sMacroF').value = s.macroF;
+    document.getElementById('sMetric').checked = s.useMetric;
+    if (s.useMetric) {
+      document.getElementById('wtVal').placeholder = 'Weight (kg)';
+    } else {
+      document.getElementById('wtVal').placeholder = 'Weight (lbs)';
+    }
 
     loadCalcProfile();
     runCalc();
