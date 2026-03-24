@@ -1,3 +1,9 @@
+/* ── THEME: apply immediately to avoid flash ── */
+  (function() {
+    const t = localStorage.getItem('blubr_theme');
+    if (t && t !== 'retro') document.documentElement.setAttribute('data-theme', t);
+  })();
+
 /* ── SUPABASE INIT ── */
   const SUPABASE_URL  = 'https://YOUR_PROJECT_REF.supabase.co';  // replace with your project URL
   const SUPABASE_ANON = 'YOUR_ANON_PUBLIC_KEY';                   // replace with your anon key
@@ -84,10 +90,12 @@
   function showAuthOverlay(show) {
     document.getElementById('authOverlay').style.display   = show ? 'flex' : 'none';
     document.getElementById('appContainer').style.display  = show ? 'none' : 'block';
-    document.querySelector('.bottom-nav').style.display    = show ? 'none' : 'flex';
-    // hide logout button when running in local (no-Supabase) mode
-    const logoutBtn = document.querySelector('.bottom-nav button[onclick="authLogout()"]');
-    if (logoutBtn) logoutBtn.style.display = _configured ? '' : 'none';
+    document.querySelector('.bottom-nav').style.display    = show ? 'none' : 'grid';
+    // hide logout buttons when running in local (no-Supabase) mode
+    const logoutBtn    = document.querySelector('.bottom-nav button[onclick="authLogout()"]');
+    const goalsLogout  = document.getElementById('goalsLogoutBtn');
+    if (logoutBtn)   logoutBtn.style.display   = _configured ? '' : 'none';
+    if (goalsLogout) goalsLogout.style.display = _configured ? '' : 'none';
     const lb = document.getElementById('localModeBanner'); if (lb) lb.style.display = (!_configured && !show) ? 'block' : 'none';
   }
 
@@ -165,6 +173,389 @@
       useMetric: document.getElementById('sMetric').checked,
     });
     refreshAll();
+  }
+
+  /* ── CLAUDE API KEY ── */
+  function saveApiKey() {
+    const k = document.getElementById('sApiKey').value.trim();
+    if (k) localStorage.setItem('blubr_api_key', k);
+    else   localStorage.removeItem('blubr_api_key');
+  }
+  function loadApiKey() {
+    const el = document.getElementById('sApiKey');
+    if (el) el.value = localStorage.getItem('blubr_api_key') || '';
+  }
+  function toggleApiKey() {
+    const el  = document.getElementById('sApiKey');
+    const btn = document.getElementById('btnShowKey');
+    if (el.type === 'password') { el.type = 'text';     btn.textContent = 'Hide'; }
+    else                        { el.type = 'password'; btn.textContent = 'Show'; }
+  }
+
+  /* ── ADD MENU ── */
+  let _addMenuOpen = false;
+
+  function toggleAddMenu() {
+    _addMenuOpen ? closeAddMenu() : openAddMenu();
+  }
+
+  function openAddMenu() {
+    _addMenuOpen = true;
+    const today = new Date();
+    const pad   = n => String(n).padStart(2, '0');
+    const todayStr = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+
+    document.getElementById('addMenuBackdrop').classList.add('visible');
+    document.getElementById('addMenuSheet').classList.add('open');
+    document.getElementById('btnNavAdd').classList.add('open');
+    document.getElementById('addSheetTiles').style.display = 'block';
+    document.getElementById('addSheetForm').style.display  = 'none';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeAddMenu() {
+    _addMenuOpen = false;
+    document.getElementById('addMenuSheet').classList.remove('open');
+    document.getElementById('btnNavAdd').classList.remove('open');
+    document.body.style.overflow = '';
+    setTimeout(() => {
+      document.getElementById('addMenuBackdrop').classList.remove('visible');
+      document.getElementById('addSheetTiles').style.display = 'block';
+      document.getElementById('addSheetForm').style.display  = 'none';
+    }, 300);
+  }
+
+  function addSheetAction(action) {
+    const today = new Date();
+    const pad   = n => String(n).padStart(2,'0');
+    const todayStr = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+
+    if (action === 'scanmeal') {
+      closeAddMenu();
+      setTimeout(() => {
+        showPage('calendar');
+        const desc = document.getElementById('aiDesc');
+        if (desc) { desc.focus(); desc.scrollIntoView({ behavior:'smooth', block:'center' }); }
+      }, 360);
+      return;
+    }
+
+    document.getElementById('addSheetTiles').style.display = 'none';
+    document.getElementById('addSheetForm').style.display  = 'block';
+
+    if (action === 'quicklog') {
+      document.getElementById('addFormTitle').textContent = 'QUICK LOG';
+      document.getElementById('addFormContent').innerHTML = `
+        <div class="add-form-inner">
+          <div class="add-form-field">
+            <label>Date</label>
+            <input type="date" id="addFormDate" value="${todayStr}">
+          </div>
+          <div class="add-form-field">
+            <label>Calories</label>
+            <input type="number" id="addFormCal" placeholder="0" min="0" max="99999" class="add-form-big-input" autofocus>
+          </div>
+          <div class="add-form-macros">
+            <div class="add-form-macro-item"><label>Protein (g)</label><input type="number" id="addFormP" placeholder="0" min="0" oninput="addFormCalcMacros()"></div>
+            <div class="add-form-macro-item"><label>Carbs (g)</label><input type="number" id="addFormC" placeholder="0" min="0" oninput="addFormCalcMacros()"></div>
+            <div class="add-form-macro-item"><label>Fat (g)</label><input type="number" id="addFormF" placeholder="0" min="0" oninput="addFormCalcMacros()"></div>
+          </div>
+          <div class="add-form-hint">P×4 + C×4 + F×9 = <span id="addFormMacroHint" style="color:var(--cyan)">—</span> cal</div>
+          <div id="addFormMsg" class="add-form-msg"></div>
+          <button class="btn-add-submit" onclick="submitQuickLog()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
+            Log It
+          </button>
+        </div>`;
+      setTimeout(() => document.getElementById('addFormCal')?.focus(), 50);
+
+    } else if (action === 'weighin') {
+      const s    = getSettings();
+      const unit = s.useMetric ? 'kg' : 'lbs';
+      document.getElementById('addFormTitle').textContent = 'WEIGH IN';
+      document.getElementById('addFormContent').innerHTML = `
+        <div class="add-form-inner">
+          <div class="add-form-field">
+            <label>Date</label>
+            <input type="date" id="addWtDate" value="${todayStr}">
+          </div>
+          <div class="add-form-field">
+            <label>Weight (${unit})</label>
+            <input type="number" id="addWtVal" placeholder="0.0" min="50" max="700" step="0.1" class="add-form-big-input" autofocus>
+          </div>
+          <div id="addFormMsg" class="add-form-msg"></div>
+          <button class="btn-add-submit" onclick="submitAddWeighIn()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
+            Save Weight
+          </button>
+        </div>`;
+      setTimeout(() => document.getElementById('addWtVal')?.focus(), 50);
+
+    } else if (action === 'photo') {
+      document.getElementById('addFormTitle').textContent = 'PROGRESS PHOTO';
+      document.getElementById('addFormContent').innerHTML = `
+        <div class="add-form-inner">
+          <div class="add-form-field">
+            <label>Date</label>
+            <input type="date" id="addPhotoDate" value="${todayStr}">
+          </div>
+          <label class="add-photo-drop" for="addProgressPhoto" id="addPhotoDropLabel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span>Tap to add photo</span>
+            <span style="font-size:0.7rem;color:var(--muted2)">Camera or gallery</span>
+          </label>
+          <input type="file" id="addProgressPhoto" accept="image/*" capture="environment" style="display:none" onchange="handleProgressPhotoSelect(this)">
+          <div id="addProgressPhotoPreview"></div>
+          <div id="addFormMsg" class="add-form-msg"></div>
+          <button class="btn-add-submit" id="btnSaveProgressPhoto" onclick="submitProgressPhoto()" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+            Save Photo
+          </button>
+        </div>`;
+    }
+  }
+
+  function addSheetBack() {
+    document.getElementById('addSheetTiles').style.display = 'block';
+    document.getElementById('addSheetForm').style.display  = 'none';
+  }
+
+  function addFormCalcMacros() {
+    const p = parseFloat(document.getElementById('addFormP')?.value) || 0;
+    const c = parseFloat(document.getElementById('addFormC')?.value) || 0;
+    const f = parseFloat(document.getElementById('addFormF')?.value) || 0;
+    const total = Math.round(p*4 + c*4 + f*9);
+    const hint  = document.getElementById('addFormMacroHint');
+    if (hint) hint.textContent = total > 0 ? total : '—';
+    // Auto-fill calories from macros if field is empty
+    const calEl = document.getElementById('addFormCal');
+    if (calEl && !calEl.value && total > 0) calEl.value = total;
+  }
+
+  function submitQuickLog() {
+    const dateKey = document.getElementById('addFormDate')?.value;
+    const cal     = parseInt(document.getElementById('addFormCal')?.value);
+    const p       = parseFloat(document.getElementById('addFormP')?.value)  || 0;
+    const c       = parseFloat(document.getElementById('addFormC')?.value)  || 0;
+    const f       = parseFloat(document.getElementById('addFormF')?.value)  || 0;
+    const msg     = document.getElementById('addFormMsg');
+
+    if (!dateKey || isNaN(cal) || cal <= 0) {
+      msg.innerHTML = '<span style="color:var(--red)">Enter a date and calories.</span>';
+      return;
+    }
+    const data = getData();
+    data[dateKey] = (data[dateKey] || 0) + cal;
+    saveData(data);
+    if (p || c || f) {
+      const macros = ls(MACROS_KEY, {});
+      const ex = macros[dateKey] || { p:0, c:0, f:0 };
+      macros[dateKey] = { p: ex.p+p, c: ex.c+c, f: ex.f+f };
+      lsSet(MACROS_KEY, macros);
+    }
+    refreshAll();
+    maybeShame(data[dateKey], dateKey);
+    msg.innerHTML = `<span style="color:var(--green)">✓ Logged ${cal} cal for ${dateKey}!</span>`;
+    setTimeout(closeAddMenu, 900);
+  }
+
+  function submitAddWeighIn() {
+    const dateKey = document.getElementById('addWtDate')?.value;
+    const w       = parseFloat(document.getElementById('addWtVal')?.value);
+    const msg     = document.getElementById('addFormMsg');
+
+    if (!dateKey || isNaN(w) || w <= 0) {
+      msg.innerHTML = '<span style="color:var(--red)">Enter a date and weight.</span>';
+      return;
+    }
+    const weights = ls(WEIGHTS_KEY, {});
+    weights[dateKey] = w;
+    lsSet(WEIGHTS_KEY, weights);
+    refreshAll();
+    const s    = getSettings();
+    const unit = s.useMetric ? 'kg' : 'lbs';
+    msg.innerHTML = `<span style="color:var(--green)">✓ Logged ${w} ${unit}!</span>`;
+    setTimeout(closeAddMenu, 900);
+  }
+
+  function handleProgressPhotoSelect(input) {
+    if (!input.files || !input.files[0]) return;
+    const url = URL.createObjectURL(input.files[0]);
+    document.getElementById('addProgressPhotoPreview').innerHTML =
+      `<img src="${url}" style="width:100%;max-height:200px;object-fit:contain;border:2px solid var(--purple);margin-top:2px;display:block;">`;
+    const btn = document.getElementById('btnSaveProgressPhoto');
+    btn.disabled = false;
+    document.getElementById('addPhotoDropLabel').style.display = 'none';
+  }
+
+  async function submitProgressPhoto() {
+    const input   = document.getElementById('addProgressPhoto');
+    const dateKey = document.getElementById('addPhotoDate')?.value;
+    const msg     = document.getElementById('addFormMsg');
+    const btn     = document.getElementById('btnSaveProgressPhoto');
+    if (!input.files || !input.files[0] || !dateKey) return;
+
+    btn.disabled = true;
+    btn.querySelector('svg + *') && (btn.lastChild.textContent = ' Saving…');
+
+    try {
+      const base64 = await _fileToBase64(input.files[0]);
+      const photos = JSON.parse(localStorage.getItem('ct_photos') || '{}');
+      photos[dateKey] = base64;
+      localStorage.setItem('ct_photos', JSON.stringify(photos));
+      renderProgressPhotos();
+      msg.innerHTML = '<span style="color:var(--green)">✓ Photo saved!</span>';
+      setTimeout(closeAddMenu, 900);
+    } catch (e) {
+      msg.innerHTML = '<span style="color:var(--red)">Error saving photo.</span>';
+      btn.disabled  = false;
+    }
+  }
+
+  function renderProgressPhotos() {
+    const container = document.getElementById('progressPhotosGrid');
+    if (!container) return;
+    const photos  = JSON.parse(localStorage.getItem('ct_photos') || '{}');
+    const entries = Object.entries(photos).sort((a,b) => b[0].localeCompare(a[0]));
+    if (!entries.length) {
+      container.innerHTML = '<div class="progress-photos-empty">No progress photos yet — tap <strong style="color:var(--green)">+</strong> to add one.</div>';
+      return;
+    }
+    container.innerHTML = entries.map(([date, b64]) => `
+      <div class="progress-photo-item" onclick="viewProgressPhoto('${date}')">
+        <img src="data:image/jpeg;base64,${b64}" loading="lazy">
+        <div class="progress-photo-date">${date}</div>
+        <button class="progress-photo-del" onclick="event.stopPropagation();deleteProgressPhoto('${date}')">×</button>
+      </div>`).join('');
+  }
+
+  function deleteProgressPhoto(dateKey) {
+    const photos = JSON.parse(localStorage.getItem('ct_photos') || '{}');
+    delete photos[dateKey];
+    localStorage.setItem('ct_photos', JSON.stringify(photos));
+    renderProgressPhotos();
+  }
+
+  function viewProgressPhoto(dateKey) {
+    const photos = JSON.parse(localStorage.getItem('ct_photos') || '{}');
+    const b64    = photos[dateKey];
+    if (!b64) return;
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9000;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;';
+    ov.innerHTML = `
+      <img src="data:image/jpeg;base64,${b64}" style="max-width:95vw;max-height:78vh;object-fit:contain;border:3px solid var(--purple);box-shadow:0 0 30px rgba(255,0,255,0.4);">
+      <div style="font-size:0.75rem;color:var(--muted);letter-spacing:2px;">${dateKey}</div>
+      <button onclick="this.closest('div').remove()" style="background:transparent;border:2px solid var(--cyan);color:var(--cyan);padding:8px 28px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;letter-spacing:1px;box-shadow:2px 2px 0 var(--cyan)">CLOSE</button>`;
+    ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+    document.body.appendChild(ov);
+  }
+
+  /* ── AI MACRO ESTIMATOR ── */
+  async function estimateMacros() {
+    const apiKey = localStorage.getItem('blubr_api_key');
+    const status = document.getElementById('aiStatus');
+    const btn    = document.getElementById('btnAiScan');
+
+    if (!apiKey) {
+      status.innerHTML = '<span style="color:var(--yellow)">⚠ Add your Claude API key in Goals → Settings first.</span>';
+      return;
+    }
+
+    const desc        = (document.getElementById('aiDesc').value || '').trim();
+    const photoInput  = document.getElementById('aiPhoto');
+    const hasPhoto    = photoInput.files && photoInput.files[0];
+
+    if (!desc && !hasPhoto) {
+      status.innerHTML = '<span style="color:var(--yellow)">⚠ Add a photo and/or describe your meal.</span>';
+      return;
+    }
+
+    btn.disabled    = true;
+    btn.innerHTML   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Estimating…';
+    status.innerHTML = '';
+
+    try {
+      const content = [];
+
+      if (hasPhoto) {
+        const base64    = await _fileToBase64(photoInput.files[0]);
+        const mediaType = photoInput.files[0].type || 'image/jpeg';
+        content.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } });
+      }
+
+      content.push({ type: 'text', text:
+        `Estimate the macronutrients for this meal${desc ? ': ' + desc : ''}.
+
+Respond with ONLY a JSON object — no other text, no markdown:
+{"calories":450,"protein":25,"carbs":40,"fat":18,"notes":"brief what-it-is summary"}
+
+Round all numbers to whole integers. Use your best judgment.`
+      });
+
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({ model: 'claude-opus-4-6', max_tokens: 300, messages: [{ role: 'user', content }] })
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error?.message || `API error ${resp.status}`);
+      }
+
+      const raw    = await resp.json();
+      const text   = raw.content[0].text.trim();
+      const match  = text.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error('Unexpected response format');
+
+      const m = JSON.parse(match[0]);
+
+      document.getElementById('logCal').value     = m.calories || '';
+      document.getElementById('logProtein').value = m.protein  || '';
+      document.getElementById('logCarbs').value   = m.carbs    || '';
+      document.getElementById('logFat').value     = m.fat      || '';
+      calcMacros();
+
+      status.innerHTML =
+        `<span style="color:var(--green)">✓ ${m.calories} cal · ${m.protein}g P · ${m.carbs}g C · ${m.fat}g F</span>` +
+        (m.notes ? `<div style="color:var(--muted);font-size:0.75rem;margin-top:3px">${m.notes}</div>` : '');
+
+    } catch (e) {
+      status.innerHTML = `<span style="color:var(--red)">✗ ${e.message}</span>`;
+    } finally {
+      btn.disabled  = false;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Estimate Macros';
+    }
+  }
+
+  function _fileToBase64(file) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload  = () => res(r.result.split(',')[1]);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+  }
+
+  function handleAiPhoto(input) {
+    const preview = document.getElementById('aiPhotoPreview');
+    const label   = document.getElementById('aiPhotoLabel');
+    if (input.files && input.files[0]) {
+      const url = URL.createObjectURL(input.files[0]);
+      preview.innerHTML = `<img src="${url}"><button class="ai-clear-btn" onclick="clearAiPhoto()">×</button>`;
+      label.textContent = 'Change';
+    }
+  }
+
+  function clearAiPhoto() {
+    document.getElementById('aiPhoto').value        = '';
+    document.getElementById('aiPhotoPreview').innerHTML = '';
+    document.getElementById('aiPhotoLabel').textContent = 'Photo';
   }
 
   /* ── SHAME ENGINE ── */
@@ -249,7 +640,7 @@
       const color = colorFor(cal, isRF);
       const hex = { green: '#34d399', yellow: '#fbbf24', red: '#f87171', refeed: '#a5b4fc' }[color] || 'var(--cyan)';
       let html = `<div class="today-big-cal" style="color:${hex}">${cal.toLocaleString()}</div>
-        <div class="today-big-sub">calories logged today${isRF ? ' · refeed 🔄' : ''}</div>`;
+        <div class="today-big-sub">calories logged today${isRF ? ' · refeed day' : ''}</div>`;
 
       const dailyGoal = Math.round(s.weekly / 7);
       const pct = dailyGoal > 0 ? Math.min((cal / dailyGoal) * 100, 100) : 0;
@@ -753,7 +1144,7 @@
       const color=cal!==undefined?colorFor(cal,isRF):'';
       const [yr,mo,dy]=k.split('-');
       const dateStr=`${MONTHS[parseInt(mo)-1].slice(0,3)} ${parseInt(dy)}, ${yr}`;
-      const calStr=cal!==undefined?`<span class="hist-cal ${color}">${cal.toLocaleString()}${isRF?' 🔄':''}</span>`:'<span style="color:var(--muted)">—</span>';
+      const calStr=cal!==undefined?`<span class="hist-cal ${color}">${cal.toLocaleString()}${isRF?' ↻':''}</span>`:'<span style="color:var(--muted)">—</span>';
       const macStr=mac?`<div class="hist-macros">P <span>${mac.p}g</span> · C <span>${mac.c}g</span> · F <span>${mac.f}g</span></div>`:'';
       rows+=`<tr onclick="openModal(${parseInt(yr)},${parseInt(mo)-1},${parseInt(dy)})" title="Click to edit">
         <td><span class="hist-date">${dateStr}</span></td>
@@ -966,6 +1357,15 @@
     updateWeekly(); renderCalChart(); renderWeightChart(); checkRecalcBanner();
   }
 
+  /* ── THEME ── */
+  function setTheme(name) {
+    document.documentElement.setAttribute('data-theme', name);
+    localStorage.setItem('blubr_theme', name);
+    document.querySelectorAll('#themePicker .theme-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.theme === name);
+    });
+  }
+
   /* ── KEYBOARD ── */
   document.getElementById('modalInput').addEventListener('keydown', e=>{ if(e.key==='Enter') saveModal(); if(e.key==='Escape') closeModal(); });
   document.getElementById('logCal').addEventListener('keydown',    e=>{ if(e.key==='Enter') logCalories(); });
@@ -986,6 +1386,7 @@
     renderWeightChart();
     renderPresets();
     renderHistory();
+    renderProgressPhotos();
   }
 
   function init() {
@@ -1012,7 +1413,11 @@
       document.getElementById('wtVal').placeholder = 'Weight (lbs)';
     }
 
+    const savedTheme = localStorage.getItem('blubr_theme') || 'retro';
+    setTheme(savedTheme);
+
     loadCalcProfile();
+    loadApiKey();
     runCalc();
     refreshAll();
   }
