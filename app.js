@@ -5,8 +5,8 @@
   })();
 
 /* ── SUPABASE INIT ── */
-  const SUPABASE_URL  = 'https://YOUR_PROJECT_REF.supabase.co';  // replace with your project URL
-  const SUPABASE_ANON = 'YOUR_ANON_PUBLIC_KEY';                   // replace with your anon key
+  const SUPABASE_URL  = 'https://fhublaxwqbufmorqyzhp.supabase.co';
+  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZodWJsYXh3cWJ1Zm1vcnF5emhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1OTU2MjMsImV4cCI6MjA4ODE3MTYyM30.Rt7Q4YCoaQqKt2lLLUZpdkH4yOsbDL7R6YyNmz-FXFE';
   const _configured = !SUPABASE_URL.includes('YOUR_PROJECT_REF');
   const _sb = _configured ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
 
