@@ -92,10 +92,10 @@
     document.getElementById('appContainer').style.display  = show ? 'none' : 'block';
     document.querySelector('.bottom-nav').style.display    = show ? 'none' : 'grid';
     // hide logout buttons when running in local (no-Supabase) mode
-    const logoutBtn    = document.querySelector('.bottom-nav button[onclick="authLogout()"]');
-    const goalsLogout  = document.getElementById('goalsLogoutBtn');
-    if (logoutBtn)   logoutBtn.style.display   = _configured ? '' : 'none';
-    if (goalsLogout) goalsLogout.style.display = _configured ? '' : 'none';
+    const logoutBtn      = document.querySelector('.bottom-nav button[onclick="authLogout()"]');
+    const settingsLogout = document.getElementById('settingsLogoutBtn');
+    if (logoutBtn)      logoutBtn.style.display      = _configured ? '' : 'none';
+    if (settingsLogout) settingsLogout.style.display = _configured ? '' : 'none';
     const lb = document.getElementById('localModeBanner'); if (lb) lb.style.display = (!_configured && !show) ? 'block' : 'none';
   }
 
@@ -457,7 +457,7 @@
     const btn    = document.getElementById('btnAiScan');
 
     if (!apiKey) {
-      status.innerHTML = '<span style="color:var(--yellow)">⚠ Add your Claude API key in Goals → Settings first.</span>';
+      status.innerHTML = '<span style="color:var(--yellow)">⚠ Add your Claude API key in Settings first (⚙ icon on Home).</span>';
       return;
     }
 
@@ -669,10 +669,14 @@ Round all numbers to whole integers. Use your best judgment.`
       }
 
       if (note) html += `<div class="today-note-display">"${escHtml(note)}"</div>`;
-      html += `<button class="btn-today-edit" onclick="openModal(${today.getFullYear()}, ${today.getMonth()}, ${today.getDate()})">Edit today's entry →</button>`;
+      html += `<div onclick="openModal(${today.getFullYear()}, ${today.getMonth()}, ${today.getDate()})" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;padding:10px;cursor:pointer;border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:var(--muted);font-size:0.75rem;letter-spacing:0.5px;text-transform:uppercase;transition:all 0.2s" onmouseover="this.style.borderColor='var(--cyan)';this.style.color='var(--cyan)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.08)';this.style.color='var(--muted)'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Edit Today's Entry
+      </div>`;
       el.innerHTML = html;
     } else {
-      el.innerHTML = `<div class="today-empty">—</div><div class="today-big-sub">nothing logged yet today</div>`;
+      el.innerHTML = `<div class="today-empty">—</div><div class="today-big-sub">nothing logged yet today</div>
+        <div style="margin-top:12px;text-align:center;font-size:0.78rem;color:var(--muted)">Tap <strong style="color:var(--green)">+</strong> to log your first meal</div>`;
     }
     renderRecentStrip();
   }
@@ -1367,12 +1371,11 @@ Round all numbers to whole integers. Use your best judgment.`
   }
 
   /* ── KEYBOARD ── */
-  document.getElementById('modalInput').addEventListener('keydown', e=>{ if(e.key==='Enter') saveModal(); if(e.key==='Escape') closeModal(); });
-  document.getElementById('logCal').addEventListener('keydown',    e=>{ if(e.key==='Enter') logCalories(); });
-  document.getElementById('quickCal').addEventListener('keydown',  e=>{ if(e.key==='Enter') quickLog(); });
-  document.getElementById('wtVal').addEventListener('keydown',     e=>{ if(e.key==='Enter') logWeight(); });
-  document.getElementById('pCal').addEventListener('keydown',      e=>{ if(e.key==='Enter') addPreset(); });
-  document.getElementById('pName').addEventListener('keydown',     e=>{ if(e.key==='Enter') document.getElementById('pCal').focus(); });
+  document.getElementById('modalInput')?.addEventListener('keydown', e=>{ if(e.key==='Enter') saveModal(); if(e.key==='Escape') closeModal(); });
+  document.getElementById('logCal')?.addEventListener('keydown',    e=>{ if(e.key==='Enter') logCalories(); });
+  document.getElementById('wtVal')?.addEventListener('keydown',     e=>{ if(e.key==='Enter') logWeight(); });
+  document.getElementById('pCal')?.addEventListener('keydown',      e=>{ if(e.key==='Enter') addPreset(); });
+  document.getElementById('pName')?.addEventListener('keydown',     e=>{ if(e.key==='Enter') document.getElementById('pCal').focus(); });
 
   /* ── INIT ── */
   function refreshAll() {
@@ -1395,9 +1398,10 @@ Round all numbers to whole integers. Use your best judgment.`
     const todayStr = `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`;
 
     document.getElementById('appDate').textContent = `${DAYS_LONG[t.getDay()]}, ${MONTHS[t.getMonth()]} ${t.getDate()}, ${t.getFullYear()}`;
-    document.getElementById('quickDate').value = todayStr;
-    document.getElementById('logDate').value   = todayStr;
-    document.getElementById('wtDate').value    = todayStr;
+    const logDateEl = document.getElementById('logDate');
+    const wtDateEl  = document.getElementById('wtDate');
+    if (logDateEl) logDateEl.value = todayStr;
+    if (wtDateEl)  wtDateEl.value  = todayStr;
 
     const s = getSettings();
     document.getElementById('sWeekly').value = s.weekly;

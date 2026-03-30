@@ -37,8 +37,15 @@
   <div class="page active" id="page-home">
 
     <div class="app-header">
-      <h1>BLUBR</h1>
-      <div class="app-subtitle">EAT. TRACK. REPEAT.</div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <h1>BLUBR</h1>
+          <div class="app-subtitle">EAT. TRACK. REPEAT.</div>
+        </div>
+        <button onclick="showPage('settings')" aria-label="Settings" style="background:none;border:none;color:var(--muted);padding:8px;cursor:pointer;margin-top:4px;transition:color 0.2s" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='var(--muted)'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
       <div class="app-date" id="appDate"></div>
     </div>
 
@@ -46,24 +53,6 @@
     <div class="card">
       <div class="card-title">Today</div>
       <div id="todayStatus" class="today-status-area"></div>
-      <div class="log-row">
-        <input type="date" id="quickDate">
-        <input type="number" id="quickCal" placeholder="Calories" min="0" max="99999">
-        <button class="btn-log" onclick="quickLog()">Log</button>
-      </div>
-      <div class="macro-row">
-        <div class="macro-item"><label>Protein (g)</label><input type="number" id="quickProtein" placeholder="0" oninput="quickCalcMacros()"></div>
-        <div class="macro-item"><label>Carbs (g)</label><input type="number" id="quickCarbs" placeholder="0" oninput="quickCalcMacros()"></div>
-        <div class="macro-item"><label>Fat (g)</label><input type="number" id="quickFat" placeholder="0" oninput="quickCalcMacros()"></div>
-      </div>
-      <div class="macro-hint">P×4 + C×4 + F×9 = <span id="quickMacroPreview">—</span> cal</div>
-    </div>
-
-    <!-- Stats Bar -->
-    <div class="stats-bar">
-      <div class="sbar-box"><div class="sbar-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div><div><div class="sbar-val" id="sbStreak">0</div><div class="sbar-lbl">Day Streak</div></div></div>
-      <div class="sbar-box"><div class="sbar-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div><div class="sbar-val" id="sb7Avg">—</div><div class="sbar-lbl">7-Day Avg</div></div></div>
-      <div class="sbar-box"><div class="sbar-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><div class="sbar-val" id="sbTotal">0</div><div class="sbar-lbl">Days Logged</div></div></div>
     </div>
 
     <!-- Weekly Progress -->
@@ -173,13 +162,20 @@
       <h2 class="page-h2">Progress</h2>
     </div>
 
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+      <div class="sbar-box"><div class="sbar-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div><div><div class="sbar-val" id="sbStreak">0</div><div class="sbar-lbl">Day Streak</div></div></div>
+      <div class="sbar-box"><div class="sbar-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div><div class="sbar-val" id="sb7Avg">—</div><div class="sbar-lbl">7-Day Avg</div></div></div>
+      <div class="sbar-box"><div class="sbar-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><div class="sbar-val" id="sbTotal">0</div><div class="sbar-lbl">Days Logged</div></div></div>
+    </div>
+
     <div class="card">
       <div class="card-title">Weight Log</div>
       <div class="recalc-banner" id="recalcBanner"></div>
-      <div class="weight-row">
+      <div class="weight-row" style="border:2px solid var(--purple);border-radius:8px;padding:12px;background:rgba(139,92,246,0.04)">
         <input type="date" id="wtDate">
-        <input type="number" id="wtVal" placeholder="Weight (lbs)" min="50" max="700" step="0.1">
-        <button class="btn-log" onclick="logWeight()">Log</button>
+        <input type="number" id="wtVal" placeholder="Weight (lbs)" min="50" max="700" step="0.1" style="font-size:1.1rem;font-weight:600">
+        <button class="btn-log" onclick="logWeight()" style="background:var(--purple);color:#fff;border-color:var(--purple)">Log</button>
       </div>
     </div>
 
@@ -342,32 +338,47 @@
       </div>
     </div>
 
-    <!-- Settings -->
-    <div class="card">
-      <div class="card-title">Settings</div>
+  </div><!-- /page-goals -->
 
-      <!-- Theme Picker -->
-      <div style="margin-bottom:20px">
-        <label style="display:block;font-size:0.75rem;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Theme</label>
-        <div class="theme-picker" id="themePicker">
-          <button class="theme-btn" data-theme="retro" onclick="setTheme('retro')">
-            <span class="theme-dots"><span style="background:#00ff41"></span><span style="background:#00ffff"></span><span style="background:#ff00ff"></span></span>Retro
-          </button>
-          <button class="theme-btn" data-theme="slate" onclick="setTheme('slate')">
-            <span class="theme-dots"><span style="background:#60a5fa"></span><span style="background:#818cf8"></span><span style="background:#34d399"></span></span>Slate
-          </button>
-          <button class="theme-btn" data-theme="aurora" onclick="setTheme('aurora')">
-            <span class="theme-dots"><span style="background:#22d3ee"></span><span style="background:#e879f9"></span><span style="background:#4ade80"></span></span>Aurora
-          </button>
-          <button class="theme-btn" data-theme="midnight" onclick="setTheme('midnight')">
-            <span class="theme-dots"><span style="background:#fbbf24"></span><span style="background:#a78bfa"></span><span style="background:#34d399"></span></span>Midnight
-          </button>
-          <button class="theme-btn active" data-theme="clean" onclick="setTheme('clean')">
-            <span class="theme-dots"><span style="background:#0891b2"></span><span style="background:#7c3aed"></span><span style="background:#059669"></span></span>Clean
-          </button>
+
+  <!-- ══════════ PAGE: SETTINGS ══════════ -->
+  <div class="page" id="page-settings">
+
+    <div class="page-hdr">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div class="page-eyebrow">BLUBR</div>
+          <h2 class="page-h2">Settings</h2>
         </div>
+        <button onclick="showPage('home')" style="background:none;border:none;color:var(--muted);padding:8px;cursor:pointer;font-size:0.8rem;letter-spacing:1px;text-transform:uppercase" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='var(--muted)'">
+          ← Back
+        </button>
       </div>
+    </div>
 
+    <div class="card">
+      <div class="card-title">Theme</div>
+      <div class="theme-picker" id="themePicker">
+        <button class="theme-btn" data-theme="retro" onclick="setTheme('retro')">
+          <span class="theme-dots"><span style="background:#00ff41"></span><span style="background:#00ffff"></span><span style="background:#ff00ff"></span></span>Retro
+        </button>
+        <button class="theme-btn" data-theme="slate" onclick="setTheme('slate')">
+          <span class="theme-dots"><span style="background:#60a5fa"></span><span style="background:#818cf8"></span><span style="background:#34d399"></span></span>Slate
+        </button>
+        <button class="theme-btn" data-theme="aurora" onclick="setTheme('aurora')">
+          <span class="theme-dots"><span style="background:#22d3ee"></span><span style="background:#e879f9"></span><span style="background:#4ade80"></span></span>Aurora
+        </button>
+        <button class="theme-btn" data-theme="midnight" onclick="setTheme('midnight')">
+          <span class="theme-dots"><span style="background:#fbbf24"></span><span style="background:#a78bfa"></span><span style="background:#34d399"></span></span>Midnight
+        </button>
+        <button class="theme-btn active" data-theme="clean" onclick="setTheme('clean')">
+          <span class="theme-dots"><span style="background:#0891b2"></span><span style="background:#7c3aed"></span><span style="background:#059669"></span></span>Clean
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Tracking</div>
       <div class="settings-grid">
         <div class="setting-item">
           <label>Weekly Calorie Goal <span style="color:rgba(0,212,255,0.42);font-size:0.56rem">(auto-set by calculator)</span></label>
@@ -379,13 +390,16 @@
         <div class="setting-item"><label>Carbs Goal (g)</label><input type="number" id="sMacroC" value="200" onchange="saveSettings()"></div>
         <div class="setting-item"><label>Fat Goal (g)</label><input type="number" id="sMacroF" value="65" onchange="saveSettings()"></div>
       </div>
-      <div style="margin-bottom:14px">
+      <div style="margin-top:14px">
         <label style="display:flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;">
           <input type="checkbox" id="sMetric" onchange="saveSettings()" style="width:auto;accent-color:var(--cyan)"> Use metric (kg/cm)
         </label>
       </div>
-      <!-- Claude API Key -->
-      <div style="margin-bottom:18px">
+    </div>
+
+    <div class="card">
+      <div class="card-title">AI Meal Scanner</div>
+      <div style="margin-bottom:8px">
         <label style="display:block;font-size:0.75rem;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">
           Claude API Key
           <span style="font-size:0.6rem;font-weight:400;color:var(--muted2);text-transform:none;letter-spacing:0;margin-left:6px">stored locally only · never synced</span>
@@ -396,17 +410,24 @@
         </div>
         <div style="font-size:0.7rem;color:var(--muted2);margin-top:5px">Get a key at console.anthropic.com · used for AI meal scanning</div>
       </div>
+    </div>
 
+    <div class="card">
+      <div class="card-title">Data</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn-export" onclick="exportCSV()">Export CSV</button>
         <button class="btn-export" onclick="importCSV()">Import CSV</button>
         <button class="btn-export" onclick="showPage('history')" style="border-color:var(--purple);color:var(--purple);box-shadow:2px 2px 0 var(--purple)">View History</button>
-        <button class="btn-export" onclick="authLogout()" id="goalsLogoutBtn" style="border-color:var(--red);color:var(--red);box-shadow:2px 2px 0 var(--red)">Log Out</button>
         <input type="file" id="importInput" accept=".csv" style="display:none">
       </div>
     </div>
 
-  </div><!-- /page-goals -->
+    <div class="card" style="border-color:rgba(239,68,68,0.2)">
+      <div class="card-title" style="color:var(--red)">Account</div>
+      <button class="btn-export" onclick="authLogout()" id="settingsLogoutBtn" style="border-color:var(--red);color:var(--red);box-shadow:2px 2px 0 var(--red);width:100%">Log Out</button>
+    </div>
+
+  </div><!-- /page-settings -->
 
 </div><!-- /container -->
 
