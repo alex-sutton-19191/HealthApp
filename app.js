@@ -124,9 +124,11 @@
 
   async function authGoogle() {
     showAuthError('');
+    // Use clean base URL — avoid stale OAuth tokens in redirect
+    const redirectUrl = window.location.origin + window.location.pathname;
     const { error } = await _sb.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.href }
+      options: { redirectTo: redirectUrl }
     });
     if (error) showAuthError(error.message);
   }
@@ -136,6 +138,7 @@
     await _sb.auth.signOut();
     _cache = { ct_data:{}, ct_macros:{}, ct_notes:{}, ct_refeed:{}, ct_weights:{}, ct_presets:[], ct_settings:{}, ct_calc:{} };
     _currentUser = null;
+    _initialized = false;  // Reset so init() re-runs on next login
     showAuthOverlay(true);
   }
 
@@ -144,9 +147,18 @@
   async function _handleSession(session) {
     if (session && session.user) {
       _currentUser = session.user;
-      await _loadFromSupabase();
+      try {
+        await _loadFromSupabase();
+      } catch (e) {
+        console.error('Failed to load user data:', e);
+      }
       showAuthOverlay(false);
       if (!_initialized) { _initialized = true; init(); }
+      else refreshAll();  // Re-render if already initialized (e.g. re-login)
+      // Clean OAuth tokens from URL hash after redirect
+      if (window.location.hash && window.location.hash.includes('access_token')) {
+        history.replaceState(null, '', window.location.pathname);
+      }
     } else {
       _currentUser = null;
       showAuthOverlay(true);
