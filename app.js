@@ -13,7 +13,8 @@
   /* ── IN-MEMORY CACHE ── */
   let _cache = {
     ct_data: {}, ct_macros: {}, ct_notes: {}, ct_refeed: {},
-    ct_weights: {}, ct_presets: [], ct_settings: {}, ct_calc: {}
+    ct_weights: {}, ct_presets: [], ct_settings: {}, ct_calc: {},
+    ct_photos: {}
   };
   let _currentUser = null;
   let _syncTimer   = null;
@@ -27,7 +28,7 @@
       .single();
     if (error && error.code !== 'PGRST116') { console.error('Load error:', error); return; }
     if (data) {
-      const keys = ['ct_data','ct_macros','ct_notes','ct_refeed','ct_weights','ct_presets','ct_settings','ct_calc'];
+      const keys = ['ct_data','ct_macros','ct_notes','ct_refeed','ct_weights','ct_presets','ct_settings','ct_calc','ct_photos'];
       keys.forEach(k => { if (data[k] !== undefined) _cache[k] = data[k]; });
     }
     await _migrateLocalStorage();
@@ -38,7 +39,7 @@
                  || Object.keys(_cache.ct_weights).length > 0
                  || (_cache.ct_presets && _cache.ct_presets.length > 0);
     if (hasData) return;
-    const keys = ['ct_data','ct_macros','ct_notes','ct_refeed','ct_weights','ct_presets','ct_settings','ct_calc'];
+    const keys = ['ct_data','ct_macros','ct_notes','ct_refeed','ct_weights','ct_presets','ct_settings','ct_calc','ct_photos'];
     let foundAny = false;
     keys.forEach(k => {
       try { const v = JSON.parse(localStorage.getItem(k)); if (v !== null) { _cache[k] = v; foundAny = true; } } catch {}
@@ -136,7 +137,7 @@
   async function authLogout() {
     await _flushToSupabase();
     await _sb.auth.signOut();
-    _cache = { ct_data:{}, ct_macros:{}, ct_notes:{}, ct_refeed:{}, ct_weights:{}, ct_presets:[], ct_settings:{}, ct_calc:{} };
+    _cache = { ct_data:{}, ct_macros:{}, ct_notes:{}, ct_refeed:{}, ct_weights:{}, ct_presets:[], ct_settings:{}, ct_calc:{}, ct_photos:{} };
     _currentUser = null;
     _initialized = false;  // Reset so init() re-runs on next login
     showAuthOverlay(true);
@@ -432,11 +433,14 @@
     btn.querySelector('svg + *') && (btn.lastChild.textContent = ' Saving…');
 
     try {
-      const base64 = await _fileToBase64(input.files[0]);
-      const photos = JSON.parse(localStorage.getItem('ct_photos') || '{}');
+      // Compress to 600px wide, JPEG quality 0.7 — keeps sync payload small
+      const base64 = await _compressImage(input.files[0], 600, 0.7);
+      const photos = ls('ct_photos', {});
       photos[dateKey] = base64;
-      localStorage.setItem('ct_photos', JSON.stringify(photos));
+      lsSet('ct_photos', photos);
       renderProgressPhotos();
+      showSuccessBurst();
+      showToast('Progress photo saved');
       msg.innerHTML = '<span style="color:var(--green)">✓ Photo saved!</span>';
       setTimeout(closeAddMenu, 900);
     } catch (e) {
@@ -448,7 +452,7 @@
   function renderProgressPhotos() {
     const container = document.getElementById('progressPhotosGrid');
     if (!container) return;
-    const photos  = JSON.parse(localStorage.getItem('ct_photos') || '{}');
+    const photos  = ls('ct_photos', {});
     const entries = Object.entries(photos).sort((a,b) => b[0].localeCompare(a[0]));
     if (!entries.length) {
       container.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
@@ -471,14 +475,14 @@
   }
 
   function deleteProgressPhoto(dateKey) {
-    const photos = JSON.parse(localStorage.getItem('ct_photos') || '{}');
+    const photos = ls('ct_photos', {});
     delete photos[dateKey];
-    localStorage.setItem('ct_photos', JSON.stringify(photos));
+    lsSet('ct_photos', photos);
     renderProgressPhotos();
   }
 
   function viewProgressPhoto(dateKey) {
-    const photos = JSON.parse(localStorage.getItem('ct_photos') || '{}');
+    const photos = ls('ct_photos', {});
     const b64    = photos[dateKey];
     if (!b64) return;
     const ov = document.createElement('div');
@@ -580,6 +584,26 @@ Round all numbers to whole integers. Use your best judgment.`
       r.onload  = () => res(r.result.split(',')[1]);
       r.onerror = rej;
       r.readAsDataURL(file);
+    });
+  }
+
+  function _compressImage(file, maxWidth, quality) {
+    maxWidth = maxWidth || 600;
+    quality  = quality  || 0.7;
+    return new Promise((res, rej) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale  = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width  = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        res(dataUrl.split(',')[1]);  // return just the base64 part
+      };
+      img.onerror = rej;
+      img.src = URL.createObjectURL(file);
     });
   }
 
