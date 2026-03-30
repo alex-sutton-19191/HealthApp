@@ -1,7 +1,7 @@
 /* ── THEME: apply immediately to avoid flash ── */
   (function() {
     const t = localStorage.getItem('blubr_theme');
-    if (t && t !== 'retro') document.documentElement.setAttribute('data-theme', t);
+    document.documentElement.setAttribute('data-theme', t || 'clean');
   })();
 
 /* ── SUPABASE INIT ── */
@@ -1413,7 +1413,7 @@ Round all numbers to whole integers. Use your best judgment.`
       document.getElementById('wtVal').placeholder = 'Weight (lbs)';
     }
 
-    const savedTheme = localStorage.getItem('blubr_theme') || 'retro';
+    const savedTheme = localStorage.getItem('blubr_theme') || 'clean';
     setTheme(savedTheme);
 
     loadCalcProfile();
