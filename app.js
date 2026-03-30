@@ -262,12 +262,64 @@
     const todayStr = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
 
     if (action === 'scanmeal') {
-      closeAddMenu();
-      setTimeout(() => {
-        showPage('calendar');
-        const desc = document.getElementById('aiDesc');
-        if (desc) { desc.focus(); desc.scrollIntoView({ behavior:'smooth', block:'center' }); }
-      }, 360);
+      document.getElementById('addSheetTiles').style.display = 'none';
+      document.getElementById('addSheetForm').style.display  = 'block';
+      document.getElementById('addFormTitle').textContent = 'AI SCAN';
+      document.getElementById('addFormContent').innerHTML = `
+        <div class="add-form-inner">
+          <div style="border:2px solid rgba(0,212,255,0.2);background:rgba(0,212,255,0.03);padding:14px;margin-bottom:4px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+              <span style="background:var(--cyan);color:#000;font-size:0.55rem;font-weight:800;letter-spacing:1px;padding:2px 6px">AI</span>
+              <span style="font-size:0.78rem;font-weight:700;color:var(--cyan);letter-spacing:1px;text-transform:uppercase">Scan Meal</span>
+              <span style="font-size:0.62rem;color:var(--muted2);margin-left:auto;font-style:italic">powered by Claude</span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px">
+              <label style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;width:68px;min-width:68px;height:68px;border:2px dashed rgba(0,212,255,0.35);cursor:pointer;color:var(--cyan);font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;background:rgba(0,212,255,0.04)" for="addAiPhoto">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <span id="addAiPhotoLabel">Photo</span>
+              </label>
+              <input type="file" id="addAiPhoto" accept="image/*" style="display:none" onchange="handleAddAiPhoto(this)">
+              <div id="addAiPhotoPreview" style="flex-shrink:0"></div>
+              <textarea id="addAiDesc" placeholder="Describe your meal… (e.g. 2 scrambled eggs, toast with butter, OJ)" rows="2" style="flex:1;padding:8px 10px;font-size:0.9rem;font-family:'Outfit',sans-serif;resize:none;height:68px;line-height:1.5;background:var(--input);border:2px solid rgba(255,255,255,0.18);color:var(--text)"></textarea>
+            </div>
+            <button class="btn-add-submit" id="btnAddAiScan" onclick="addSheetEstimateMacros()" style="background:var(--cyan);border-color:var(--cyan);box-shadow:3px 3px 0 rgba(0,212,255,0.3)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Estimate Macros
+            </button>
+            <div id="addAiStatus" style="margin-top:10px;font-size:0.82rem;line-height:1.6;min-height:0"></div>
+          </div>
+          <div id="addAiResults" style="display:none">
+            <div style="font-size:0.68rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--purple);margin:10px 0 6px;padding-left:8px;border-left:3px solid var(--purple)">Estimated Macros</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+              <div style="text-align:center;padding:10px 4px;border:2px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02)">
+                <div id="addAiCal" style="font-size:1.3rem;font-weight:700;color:var(--yellow)">—</div>
+                <div style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:4px">Cal</div>
+              </div>
+              <div style="text-align:center;padding:10px 4px;border:2px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02)">
+                <div id="addAiP" style="font-size:1.3rem;font-weight:700;color:#f472b6">—</div>
+                <div style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:4px">Protein</div>
+              </div>
+              <div style="text-align:center;padding:10px 4px;border:2px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02)">
+                <div id="addAiC" style="font-size:1.3rem;font-weight:700;color:#60a5fa">—</div>
+                <div style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:4px">Carbs</div>
+              </div>
+              <div style="text-align:center;padding:10px 4px;border:2px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02)">
+                <div id="addAiF" style="font-size:1.3rem;font-weight:700;color:#fbbf24">—</div>
+                <div style="font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:4px">Fat</div>
+              </div>
+            </div>
+            <div id="addAiNote" style="font-size:0.78rem;color:var(--muted);font-style:italic;margin-bottom:12px"></div>
+            <div class="add-form-field">
+              <label>Date</label>
+              <input type="date" id="addAiDate" value="${todayStr}">
+            </div>
+            <div id="addFormMsg" class="add-form-msg"></div>
+            <button class="btn-add-submit" onclick="submitAiLog()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
+              Log This Meal
+            </button>
+          </div>
+        </div>`;
       return;
     }
 
@@ -388,8 +440,38 @@
     maybeShame(data[dateKey], dateKey);
     showSuccessBurst();
     showToast(`Logged ${cal} cal for ${dateKey}`);
-    msg.innerHTML = `<span style="color:var(--green)">✓ Logged ${cal} cal!</span>`;
-    setTimeout(closeAddMenu, 900);
+
+    // Show "Save as Preset?" prompt
+    const formContent = document.getElementById('addFormContent');
+    formContent.innerHTML = `
+      <div class="add-form-inner" style="text-align:center;padding:12px 0">
+        <div style="color:var(--green);font-size:1.2rem;font-weight:700;margin-bottom:8px">✓ Logged ${cal} cal</div>
+        <div style="color:var(--muted);font-size:0.82rem;margin-bottom:16px">${p||c||f ? `P${p}g C${c}g F${f}g` : ''}</div>
+        <div style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:12px">Save as a preset for quick logging?</div>
+        <input type="text" id="presetSaveName" placeholder="Preset name (e.g. My Usual Lunch)" style="width:100%;padding:10px 12px;font-size:0.95rem;font-family:'Outfit',sans-serif;background:var(--input);border:2px solid rgba(255,255,255,0.18);color:var(--text);margin-bottom:10px">
+        <div style="display:flex;gap:8px">
+          <button class="btn-add-submit" style="flex:1;background:transparent;border-color:rgba(255,255,255,0.2);color:var(--text)" onclick="closeAddMenu()">Skip</button>
+          <button class="btn-add-submit" style="flex:1" onclick="saveQuickLogAsPreset(${cal},${p},${c},${f})">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+            Save
+          </button>
+        </div>
+      </div>`;
+    document.getElementById('presetSaveName')?.focus();
+  }
+
+  function saveQuickLogAsPreset(cal, p, c, f) {
+    const name = (document.getElementById('presetSaveName')?.value || '').trim();
+    if (!name) {
+      document.getElementById('presetSaveName').style.borderColor = 'var(--red)';
+      return;
+    }
+    const presets = ls(PRESETS_KEY, []);
+    presets.push({ name, cal, p, c, f });
+    lsSet(PRESETS_KEY, presets);
+    renderPresets();
+    showToast(`Saved "${name}" preset`);
+    closeAddMenu();
   }
 
   function submitAddWeighIn() {
@@ -496,39 +578,47 @@
     document.body.appendChild(ov);
   }
 
-  /* ── AI MACRO ESTIMATOR ── */
-  async function estimateMacros() {
+  /* ── ADD SHEET AI SCAN ── */
+  function handleAddAiPhoto(input) {
+    const preview = document.getElementById('addAiPhotoPreview');
+    const label   = document.getElementById('addAiPhotoLabel');
+    if (input.files && input.files[0]) {
+      const url = URL.createObjectURL(input.files[0]);
+      preview.innerHTML = `<img src="${url}" style="width:68px;height:68px;object-fit:cover;border:2px solid var(--cyan);display:block">`;
+      label.textContent = 'Change';
+    }
+  }
+
+  async function addSheetEstimateMacros() {
     const apiKey = localStorage.getItem('blubr_api_key');
-    const status = document.getElementById('aiStatus');
-    const btn    = document.getElementById('btnAiScan');
+    const status = document.getElementById('addAiStatus');
+    const btn    = document.getElementById('btnAddAiScan');
 
     if (!apiKey) {
       status.innerHTML = '<span style="color:var(--yellow)">⚠ Add your Claude API key in Settings first (⚙ icon on Home).</span>';
       return;
     }
 
-    const desc        = (document.getElementById('aiDesc').value || '').trim();
-    const photoInput  = document.getElementById('aiPhoto');
-    const hasPhoto    = photoInput.files && photoInput.files[0];
+    const desc       = (document.getElementById('addAiDesc').value || '').trim();
+    const photoInput = document.getElementById('addAiPhoto');
+    const hasPhoto   = photoInput.files && photoInput.files[0];
 
     if (!desc && !hasPhoto) {
       status.innerHTML = '<span style="color:var(--yellow)">⚠ Add a photo and/or describe your meal.</span>';
       return;
     }
 
-    btn.disabled    = true;
-    btn.innerHTML   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Estimating…';
+    btn.disabled  = true;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Scanning…';
     status.innerHTML = '';
 
     try {
       const content = [];
-
       if (hasPhoto) {
         const base64    = await _fileToBase64(photoInput.files[0]);
         const mediaType = photoInput.files[0].type || 'image/jpeg';
         content.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } });
       }
-
       content.push({ type: 'text', text:
         `Estimate the macronutrients for this meal${desc ? ': ' + desc : ''}.
 
@@ -546,7 +636,7 @@ Round all numbers to whole integers. Use your best judgment.`
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true'
         },
-        body: JSON.stringify({ model: 'claude-opus-4-6', max_tokens: 300, messages: [{ role: 'user', content }] })
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 300, messages: [{ role: 'user', content }] })
       });
 
       if (!resp.ok) {
@@ -554,23 +644,24 @@ Round all numbers to whole integers. Use your best judgment.`
         throw new Error(err.error?.message || `API error ${resp.status}`);
       }
 
-      const raw    = await resp.json();
-      const text   = raw.content[0].text.trim();
-      const match  = text.match(/\{[\s\S]*\}/);
+      const raw   = await resp.json();
+      const text  = raw.content[0].text.trim();
+      const match = text.match(/\{[\s\S]*\}/);
       if (!match) throw new Error('Unexpected response format');
-
       const m = JSON.parse(match[0]);
 
-      document.getElementById('logCal').value     = m.calories || '';
-      document.getElementById('logProtein').value = m.protein  || '';
-      document.getElementById('logCarbs').value   = m.carbs    || '';
-      document.getElementById('logFat').value     = m.fat      || '';
-      calcMacros();
+      // Store for logging
+      window._addAiResult = m;
 
-      status.innerHTML =
-        `<span style="color:var(--green)">✓ ${m.calories} cal · ${m.protein}g P · ${m.carbs}g C · ${m.fat}g F</span>` +
-        (m.notes ? `<div style="color:var(--muted);font-size:0.75rem;margin-top:3px">${m.notes}</div>` : '');
+      // Show results
+      document.getElementById('addAiCal').textContent = m.calories || '—';
+      document.getElementById('addAiP').textContent   = (m.protein || 0) + 'g';
+      document.getElementById('addAiC').textContent   = (m.carbs || 0) + 'g';
+      document.getElementById('addAiF').textContent    = (m.fat || 0) + 'g';
+      document.getElementById('addAiNote').textContent = m.notes || '';
+      document.getElementById('addAiResults').style.display = 'block';
 
+      status.innerHTML = '<span style="color:var(--green)">✓ Scan complete — review and log below.</span>';
     } catch (e) {
       status.innerHTML = `<span style="color:var(--red)">✗ ${e.message}</span>`;
     } finally {
@@ -578,6 +669,34 @@ Round all numbers to whole integers. Use your best judgment.`
       btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Estimate Macros';
     }
   }
+
+  function submitAiLog() {
+    const m = window._addAiResult;
+    if (!m || !m.calories) return;
+    const dateKey = document.getElementById('addAiDate')?.value;
+    const msg     = document.getElementById('addFormMsg');
+    if (!dateKey) { msg.innerHTML = '<span style="color:var(--red)">Select a date.</span>'; return; }
+
+    const data = getData();
+    data[dateKey] = (data[dateKey] || 0) + m.calories;
+    saveData(data);
+
+    if (m.protein || m.carbs || m.fat) {
+      const macros = ls(MACROS_KEY, {});
+      const ex = macros[dateKey] || { p:0, c:0, f:0 };
+      macros[dateKey] = { p: ex.p + (m.protein||0), c: ex.c + (m.carbs||0), f: ex.f + (m.fat||0) };
+      lsSet(MACROS_KEY, macros);
+    }
+
+    refreshAll();
+    maybeShame(data[dateKey], dateKey);
+    showSuccessBurst();
+    showToast(`Logged ${m.calories} cal via AI scan`);
+    msg.innerHTML = `<span style="color:var(--green)">✓ Logged ${m.calories} cal!</span>`;
+    setTimeout(closeAddMenu, 900);
+  }
+
+  /* ── AI MACRO ESTIMATOR — legacy Log tab form removed, now self-contained in + menu ── */
 
   function _fileToBase64(file) {
     return new Promise((res, rej) => {
@@ -601,27 +720,11 @@ Round all numbers to whole integers. Use your best judgment.`
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        res(dataUrl.split(',')[1]);  // return just the base64 part
+        res(dataUrl.split(',')[1]);
       };
       img.onerror = rej;
       img.src = URL.createObjectURL(file);
     });
-  }
-
-  function handleAiPhoto(input) {
-    const preview = document.getElementById('aiPhotoPreview');
-    const label   = document.getElementById('aiPhotoLabel');
-    if (input.files && input.files[0]) {
-      const url = URL.createObjectURL(input.files[0]);
-      preview.innerHTML = `<img src="${url}"><button class="ai-clear-btn" onclick="clearAiPhoto()">×</button>`;
-      label.textContent = 'Change';
-    }
-  }
-
-  function clearAiPhoto() {
-    document.getElementById('aiPhoto').value        = '';
-    document.getElementById('aiPhotoPreview').innerHTML = '';
-    document.getElementById('aiPhotoLabel').textContent = 'Photo';
   }
 
   /* ── SHAME ENGINE ── */
@@ -983,27 +1086,7 @@ Round all numbers to whole integers. Use your best judgment.`
     renderCalendar();
   }
 
-  /* ── CALENDAR PAGE LOG ── */
-  function calcMacros() {
-    const p = parseFloat(document.getElementById('logProtein').value) || 0;
-    const c = parseFloat(document.getElementById('logCarbs').value)   || 0;
-    const f = parseFloat(document.getElementById('logFat').value)     || 0;
-    const prev = document.getElementById('macroCalcPreview');
-    if (p||c||f) { const t=Math.round(p*4+c*4+f*9); prev.textContent=t.toLocaleString(); document.getElementById('logCal').value=t; }
-    else prev.textContent='—';
-  }
-
-  function logCalories() {
-    const dateVal = document.getElementById('logDate').value;
-    const calVal  = document.getElementById('logCal').value;
-    const p = parseFloat(document.getElementById('logProtein').value) || 0;
-    const c = parseFloat(document.getElementById('logCarbs').value)   || 0;
-    const f = parseFloat(document.getElementById('logFat').value)     || 0;
-    if (!_doLog(dateVal, calVal, p, c, f)) return;
-    document.getElementById('logCal').value=''; document.getElementById('logProtein').value='';
-    document.getElementById('logCarbs').value=''; document.getElementById('logFat').value='';
-    document.getElementById('macroCalcPreview').textContent='—';
-  }
+  /* ── CALENDAR PAGE LOG (legacy form removed — all logging via + FAB) ── */
 
   /* ── PRESETS ── */
   function addPreset() {
@@ -1029,20 +1112,21 @@ Round all numbers to whole integers. Use your best judgment.`
   }
 
   function applyPreset(cal, p, c, f) {
-    document.getElementById('logCal').value=cal;
-    document.getElementById('logProtein').value=p||'';
-    document.getElementById('logCarbs').value=c||'';
-    document.getElementById('logFat').value=f||'';
-    calcMacros();
-    document.getElementById('logCal').focus();
+    const today = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    const dateKey = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+    _doLog(dateKey, cal, p||0, c||0, f||0);
+    showSuccessBurst();
+    showToast(`Logged ${cal} cal`);
   }
 
   function renderPresets() {
     const presets = ls(PRESETS_KEY, []);
     const chips = document.getElementById('presetChips');
     chips.innerHTML = presets.length === 0
-      ? '<span style="font-size:0.78rem;color:var(--muted)">No presets yet — add one below</span>'
-      : presets.map(p => `<div class="preset-chip" onclick="applyPreset(${p.cal},${p.p||0},${p.c||0},${p.f||0})">${escHtml(p.name)}<span class="preset-chip-cal">${p.cal.toLocaleString()}</span></div>`).join('');
+      ? ''
+      : '<div style="font-size:0.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Tap to log today</div>' +
+        presets.map(p => `<div class="preset-chip" onclick="applyPreset(${p.cal},${p.p||0},${p.c||0},${p.f||0})">${escHtml(p.name)}<span class="preset-chip-cal">${p.cal.toLocaleString()}</span></div>`).join('');
 
     const list = document.getElementById('presetList');
     list.innerHTML = presets.length === 0
@@ -1583,7 +1667,6 @@ Round all numbers to whole integers. Use your best judgment.`
 
   /* ── KEYBOARD ── */
   document.getElementById('modalInput')?.addEventListener('keydown', e=>{ if(e.key==='Enter') saveModal(); if(e.key==='Escape') closeModal(); });
-  document.getElementById('logCal')?.addEventListener('keydown',    e=>{ if(e.key==='Enter') logCalories(); });
   document.getElementById('wtVal')?.addEventListener('keydown',     e=>{ if(e.key==='Enter') logWeight(); });
   document.getElementById('pCal')?.addEventListener('keydown',      e=>{ if(e.key==='Enter') addPreset(); });
   document.getElementById('pName')?.addEventListener('keydown',     e=>{ if(e.key==='Enter') document.getElementById('pCal').focus(); });

@@ -731,8 +731,26 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
   /* Settings: 3 col → 2 col */
   .settings-grid { grid-template-columns: repeat(2, 1fr); }
 
-  /* Modal: drop fixed width */
-  .modal { width: calc(100% - 32px); }
+  /* Modal → bottom sheet on mobile */
+  .overlay.show { align-items: flex-end; }
+  .modal {
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    border: none;
+    border-top: 3px solid var(--purple);
+    box-shadow: 0 -4px 24px rgba(139,92,246,0.3);
+    padding: 18px 20px 28px;
+    animation: sheetUp 0.3s cubic-bezier(0.32,0.72,0,1);
+  }
+  .modal::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    background: rgba(255,255,255,0.2);
+    margin: 0 auto 14px;
+  }
 
   /* History: hide Weight + Notes columns to keep table readable */
   .history-table th:nth-child(3),
@@ -765,6 +783,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
   .auth-btn { font-size: 0.8rem !important; letter-spacing: 1px !important; }
 }
 
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
 @keyframes shameEntrance {
   0%   { transform: scale(1.3) rotate(-2deg); opacity: 0; }
   33%  { transform: scale(0.95) rotate(1deg);  opacity: 1; }
