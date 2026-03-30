@@ -154,13 +154,8 @@
   }
 
   if (_configured) {
-    // Restore existing session immediately on page load (prevents login flash)
-    _sb.auth.getSession().then(({ data: { session } }) => _handleSession(session));
-
-    // Listen for future auth changes (sign-in, sign-out, token refresh)
+    // Handle all auth events including OAuth redirects and session restore
     _sb.auth.onAuthStateChange(async (event, session) => {
-      // Skip INITIAL_SESSION since getSession() handles it above
-      if (event === 'INITIAL_SESSION') return;
       await _handleSession(session);
     });
 
