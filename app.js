@@ -181,12 +181,21 @@
   }
   function getData()   { return ls(DATA_KEY, {}); }
   function saveData(d) { lsSet(DATA_KEY, d); }
-  function getSettings() { return Object.assign({ weekly: 14000, green: 200, red: 2000, macroP: 150, macroC: 200, macroF: 65, useMetric: false }, ls(SET_KEY, {})); }
+  function getSettings() {
+    const raw = Object.assign({ weekly: 14000, macroP: 150, macroC: 200, macroF: 65, useMetric: false }, ls(SET_KEY, {}));
+    // Green/red thresholds: default to daily target and 20% over if not explicitly set
+    const daily = Math.round(raw.weekly / 7);
+    if (!raw.green || raw.green < 50) raw.green = daily;
+    if (!raw.red   || raw.red < 100)  raw.red   = Math.round(daily * 1.2);
+    return raw;
+  }
   function saveSettings() {
+    const weekly = parseInt(document.getElementById('sWeekly').value) || 14000;
+    const daily  = Math.round(weekly / 7);
     lsSet(SET_KEY, {
-      weekly:    parseInt(document.getElementById('sWeekly').value) || 14000,
-      green:     parseInt(document.getElementById('sGreen').value)  || 200,
-      red:       parseInt(document.getElementById('sRed').value)    || 2000,
+      weekly,
+      green:     parseInt(document.getElementById('sGreen').value)  || daily,
+      red:       parseInt(document.getElementById('sRed').value)    || Math.round(daily * 1.2),
       macroP:    parseInt(document.getElementById('sMacroP').value) || 150,
       macroC:    parseInt(document.getElementById('sMacroC').value) || 200,
       macroF:    parseInt(document.getElementById('sMacroF').value) || 65,
@@ -1400,6 +1409,13 @@ Round all numbers to whole integers. Use your best judgment.`
     document.getElementById('rBMI').textContent=bmi.toFixed(1);
     document.getElementById('rBMISub').textContent=bmiCat;
     document.getElementById('rProtein').textContent=protein+'g';
+
+    // Show full macro breakdown in the protein result box subtitle
+    const proteinCalc = protein * 4;
+    const remainCalc = Math.max(0, dailyCal - proteinCalc);
+    const carbsCalc = Math.round((remainCalc * 0.55) / 4);
+    const fatCalc   = Math.round((remainCalc - Math.round(remainCalc * 0.55)) / 9);
+    document.getElementById('rProtein').closest('.calc-result-box').querySelector('.calc-result-sub').innerHTML = `P ${protein}g · C ${carbsCalc}g · F ${fatCalc}g`;
     document.getElementById('rTarget').textContent=dailyCal.toLocaleString();
     document.getElementById('rTargetSub').textContent=deficit<0?'cal / day to gain weight':deficit===0?'cal / day to maintain':'cal / day to lose weight';
     document.getElementById('rWeekly').textContent=weeklyCal.toLocaleString();
@@ -1424,8 +1440,16 @@ Round all numbers to whole integers. Use your best judgment.`
     noteEl.textContent=msgs.join(' ');
     document.getElementById('calcResults').style.display='block';
 
+    // Calculate macro split: protein from lean mass, then carbs ~40% remaining, fat the rest
+    const proteinCal = protein * 4;
+    const remainingCal = Math.max(0, dailyCal - proteinCal);
+    const carbsCal = Math.round(remainingCal * 0.55);  // ~55% of remaining from carbs
+    const fatCal   = remainingCal - carbsCal;            // rest from fat
+    const carbs = Math.round(carbsCal / 4);
+    const fat   = Math.round(fatCal / 9);
+
     // Store calculated values for the "Set As My Goal" button — don't auto-apply
-    _lastCalcResult = { dailyCal, weeklyCal, protein };
+    _lastCalcResult = { dailyCal, weeklyCal, protein, carbs, fat };
     // Reset button state when inputs change
     const btn = document.getElementById('btnApplyGoal');
     const msg = document.getElementById('goalApplyMsg');
@@ -1438,19 +1462,31 @@ Round all numbers to whole integers. Use your best judgment.`
 
   function applyGoal() {
     if (!_lastCalcResult) return;
-    const { dailyCal, weeklyCal, protein } = _lastCalcResult;
+    const { dailyCal, weeklyCal, protein, carbs, fat } = _lastCalcResult;
 
-    // Save to settings
+    // Save to settings — including auto-calculated green/red thresholds
     const s = getSettings();
     s.weekly = weeklyCal;
+    s.green  = dailyCal;                       // at or under daily target = green
+    s.red    = Math.round(dailyCal * 1.2);     // 20% over = red
     if (protein) s.macroP = protein;
+    if (carbs)   s.macroC = carbs;
+    if (fat)     s.macroF = fat;
     lsSet(SET_KEY, s);
 
     // Update settings page inputs if they exist
     const sWeekly = document.getElementById('sWeekly');
     const sMacroP = document.getElementById('sMacroP');
+    const sMacroC = document.getElementById('sMacroC');
+    const sMacroF = document.getElementById('sMacroF');
+    const sGreen  = document.getElementById('sGreen');
+    const sRed    = document.getElementById('sRed');
     if (sWeekly) sWeekly.value = weeklyCal;
     if (sMacroP && protein) sMacroP.value = protein;
+    if (sMacroC && carbs)   sMacroC.value = carbs;
+    if (sMacroF && fat)     sMacroF.value = fat;
+    if (sGreen) sGreen.value = dailyCal;
+    if (sRed)   sRed.value = Math.round(dailyCal * 1.2);
 
     // Visual confirmation
     const btn = document.getElementById('btnApplyGoal');
@@ -1465,11 +1501,8 @@ Round all numbers to whole integers. Use your best judgment.`
     showSuccessBurst();
     showToast(`Goal set: ${dailyCal.toLocaleString()} cal/day`);
 
-    // Refresh the rest of the app with new goal
-    renderGoalSummary();
-    updateWeekly();
-    renderCalChart();
-    renderWeightChart();
+    // Refresh everything with new goal + thresholds
+    refreshAll();
   }
 
   function renderGoalSummary() {
