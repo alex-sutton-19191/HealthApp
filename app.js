@@ -1376,9 +1376,92 @@ Round all numbers to whole integers. Use your best judgment.`
     noteEl.textContent=msgs.join(' ');
     document.getElementById('calcResults').style.display='block';
 
-    document.getElementById('sWeekly').value=weeklyCal;
-    lsSet(SET_KEY,Object.assign(getSettings(),{weekly:weeklyCal}));
-    updateWeekly(); renderCalChart(); renderWeightChart(); checkRecalcBanner();
+    // Store calculated values for the "Set As My Goal" button — don't auto-apply
+    _lastCalcResult = { dailyCal, weeklyCal, protein };
+    // Reset button state when inputs change
+    const btn = document.getElementById('btnApplyGoal');
+    const msg = document.getElementById('goalApplyMsg');
+    if (btn) { btn.textContent = '✓ Set As My Goal'; btn.style.opacity = '1'; }
+    if (msg) msg.innerHTML = '';
+    checkRecalcBanner();
+  }
+
+  let _lastCalcResult = null;
+
+  function applyGoal() {
+    if (!_lastCalcResult) return;
+    const { dailyCal, weeklyCal, protein } = _lastCalcResult;
+
+    // Save to settings
+    const s = getSettings();
+    s.weekly = weeklyCal;
+    if (protein) s.macroP = protein;
+    lsSet(SET_KEY, s);
+
+    // Update settings page inputs if they exist
+    const sWeekly = document.getElementById('sWeekly');
+    const sMacroP = document.getElementById('sMacroP');
+    if (sWeekly) sWeekly.value = weeklyCal;
+    if (sMacroP && protein) sMacroP.value = protein;
+
+    // Visual confirmation
+    const btn = document.getElementById('btnApplyGoal');
+    const msg = document.getElementById('goalApplyMsg');
+    if (btn) {
+      btn.textContent = '✓ Goal Saved!';
+      btn.style.opacity = '0.7';
+    }
+    if (msg) {
+      msg.innerHTML = `<span style="color:var(--green)">Your target is now ${dailyCal.toLocaleString()} cal/day · ${weeklyCal.toLocaleString()} cal/week</span>`;
+    }
+
+    // Refresh the rest of the app with new goal
+    renderGoalSummary();
+    updateWeekly();
+    renderCalChart();
+    renderWeightChart();
+  }
+
+  function renderGoalSummary() {
+    const card = document.getElementById('goalSummaryCard');
+    const content = document.getElementById('goalSummaryContent');
+    const badge = document.getElementById('goalPaceBadge');
+    if (!card || !content) return;
+
+    const s = getSettings();
+    const dailyGoal = Math.round(s.weekly / 7);
+
+    // Determine pace from saved calc profile
+    const p = ls(CALC_KEY, {});
+    const paceVal = parseInt(p.pace);
+    let paceText = '';
+    if (!isNaN(paceVal)) {
+      if (paceVal < 0) paceText = 'Bulking';
+      else if (paceVal === 0) paceText = 'Maintaining';
+      else if (paceVal <= 250) paceText = 'Gentle cut';
+      else if (paceVal <= 500) paceText = '~1 lb/week';
+      else if (paceVal <= 750) paceText = '~1.5 lb/week';
+      else paceText = '~2 lb/week';
+    }
+    if (badge) badge.textContent = paceText;
+
+    content.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="text-align:center;padding:18px 12px;border-radius:10px;border:2px solid var(--green);background:rgba(16,185,129,0.05)">
+          <div style="font-size:2.2rem;font-weight:700;color:var(--green);line-height:1">${dailyGoal.toLocaleString()}</div>
+          <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:6px">cal / day</div>
+        </div>
+        <div style="text-align:center;padding:18px 12px;border-radius:10px;border:2px solid var(--purple);background:rgba(139,92,246,0.05)">
+          <div style="font-size:2.2rem;font-weight:700;color:var(--purple);line-height:1">${s.weekly.toLocaleString()}</div>
+          <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:6px">cal / week</div>
+        </div>
+      </div>
+      ${s.macroP ? `<div style="display:flex;justify-content:center;gap:16px;margin-top:12px;font-size:0.75rem;color:var(--muted)">
+        <span>P: <strong style="color:var(--text)">${s.macroP}g</strong></span>
+        <span>C: <strong style="color:var(--text)">${s.macroC}g</strong></span>
+        <span>F: <strong style="color:var(--text)">${s.macroF}g</strong></span>
+      </div>` : ''}
+    `;
   }
 
   /* ── THEME ── */
@@ -1410,6 +1493,7 @@ Round all numbers to whole integers. Use your best judgment.`
     renderPresets();
     renderHistory();
     renderProgressPhotos();
+    renderGoalSummary();
   }
 
   function init() {

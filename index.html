@@ -243,9 +243,19 @@
       <h2 class="page-h2">Goals</h2>
     </div>
 
+    <!-- Active Goal Summary -->
+    <div class="card" id="goalSummaryCard" style="border-color:var(--green);overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="card-title" style="margin:0">My Goal</div>
+        <div id="goalPaceBadge" style="font-size:0.68rem;color:var(--green);background:rgba(16,185,129,0.1);padding:4px 10px;border-radius:99px;letter-spacing:0.5px"></div>
+      </div>
+      <div id="goalSummaryContent" style="margin-top:12px"></div>
+    </div>
+
     <!-- Goal Calculator -->
     <div class="card">
       <div class="card-title">Calorie Goal Calculator</div>
+      <div style="font-size:0.75rem;color:var(--muted);margin:-4px 0 14px;line-height:1.6">Enter your stats to calculate a personalized target. Adjust freely — nothing saves until you tap "Set As My Goal."</div>
       <div class="mode-toggle">
         <button id="modeWeightBtn" class="mode-btn active" onclick="setCalcMode('weight')">By Target Weight</button>
         <button id="modeBFBtn"     class="mode-btn"        onclick="setCalcMode('bf')">By Body Fat %</button>
@@ -316,7 +326,7 @@
         <div class="calc-section-lbl">Your Calorie Targets</div>
         <div class="calc-results-grid">
           <div class="calc-result-box highlight"><div class="calc-result-lbl">Daily Target</div><div class="calc-result-val" id="rTarget">—</div><div class="calc-result-sub" id="rTargetSub">cal / day to lose weight</div></div>
-          <div class="calc-result-box highlight"><div class="calc-result-lbl">Weekly Goal</div><div class="calc-result-val" id="rWeekly">—</div><div class="auto-badge">auto-applied to tracker</div></div>
+          <div class="calc-result-box highlight"><div class="calc-result-lbl">Weekly Goal</div><div class="calc-result-val" id="rWeekly">—</div><div class="calc-result-sub">cal / week</div></div>
           <div class="calc-result-box"><div class="calc-result-lbl">Weekly Deficit</div><div class="calc-result-val" id="rWeeklyDeficit">—</div><div class="calc-result-sub">cal under maintenance / week</div></div>
         </div>
 
@@ -335,6 +345,14 @@
         </div>
 
         <div id="calcNote" class="calc-note"></div>
+
+        <!-- Set As My Goal Button -->
+        <div style="margin-top:20px">
+          <button id="btnApplyGoal" onclick="applyGoal()" style="width:100%;padding:16px;font-size:1rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;background:linear-gradient(135deg,var(--green),var(--cyan));color:#000;border:none;border-radius:10px;cursor:pointer;transition:all 0.3s;box-shadow:0 4px 20px rgba(16,185,129,0.25)">
+            ✓ Set As My Goal
+          </button>
+          <div id="goalApplyMsg" style="margin-top:8px;font-size:0.78rem;text-align:center;min-height:1.4em"></div>
+        </div>
       </div>
     </div>
 
@@ -381,7 +399,7 @@
       <div class="card-title">Tracking</div>
       <div class="settings-grid">
         <div class="setting-item">
-          <label>Weekly Calorie Goal <span style="color:rgba(0,212,255,0.42);font-size:0.56rem">(auto-set by calculator)</span></label>
+          <label>Weekly Calorie Goal <span style="color:rgba(0,212,255,0.42);font-size:0.56rem">(set via Goals calculator)</span></label>
           <input type="number" id="sWeekly" value="14000" onchange="saveSettings()">
         </div>
         <div class="setting-item"><label>Green Below (cal)</label><input type="number" id="sGreen" value="200" onchange="saveSettings()"></div>
