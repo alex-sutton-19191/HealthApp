@@ -375,7 +375,9 @@
     }
     refreshAll();
     maybeShame(data[dateKey], dateKey);
-    msg.innerHTML = `<span style="color:var(--green)">✓ Logged ${cal} cal for ${dateKey}!</span>`;
+    showSuccessBurst();
+    showToast(`Logged ${cal} cal for ${dateKey}`);
+    msg.innerHTML = `<span style="color:var(--green)">✓ Logged ${cal} cal!</span>`;
     setTimeout(closeAddMenu, 900);
   }
 
@@ -394,6 +396,8 @@
     refreshAll();
     const s    = getSettings();
     const unit = s.useMetric ? 'kg' : 'lbs';
+    showSuccessBurst();
+    showToast(`Logged ${w} ${unit}`);
     msg.innerHTML = `<span style="color:var(--green)">✓ Logged ${w} ${unit}!</span>`;
     setTimeout(closeAddMenu, 900);
   }
@@ -438,7 +442,15 @@
     const photos  = JSON.parse(localStorage.getItem('ct_photos') || '{}');
     const entries = Object.entries(photos).sort((a,b) => b[0].localeCompare(a[0]));
     if (!entries.length) {
-      container.innerHTML = '<div class="progress-photos-empty">No progress photos yet — tap <strong style="color:var(--green)">+</strong> to add one.</div>';
+      container.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+        <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="24" height="24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+        <div class="empty-state-title">No photos yet</div>
+        <div class="empty-state-sub">Track your transformation with progress photos.</div>
+        <div class="empty-state-cta" onclick="toggleAddMenu()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add a photo
+        </div>
+      </div>`;
       return;
     }
     container.innerHTML = entries.map(([date, b64]) => `
@@ -621,6 +633,30 @@ Round all numbers to whole integers. Use your best judgment.`
     document.getElementById('shameOverlay').style.display = 'none';
   }
 
+  /* ── SUCCESS FEEDBACK ── */
+  function showToast(msg, type) {
+    let toast = document.getElementById('appToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'appToast';
+      toast.className = 'toast';
+      document.body.appendChild(toast);
+    }
+    toast.className = 'toast' + (type === 'warn' ? ' toast-warn' : '');
+    toast.innerHTML = (type === 'warn' ? '⚠ ' : '✓ ') + msg;
+    requestAnimationFrame(() => { toast.classList.add('show'); });
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+
+  function showSuccessBurst() {
+    const burst = document.createElement('div');
+    burst.className = 'success-burst';
+    burst.innerHTML = `<div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="28" height="28"><polyline points="20 6 9 17 4 12"/></svg></div><div class="ring"></div>`;
+    document.body.appendChild(burst);
+    setTimeout(() => burst.remove(), 700);
+  }
+
   /* ── HELPERS ── */
   function makeKey(y, m, d) { return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
   function isMetric() { return !!getSettings().useMetric; }
@@ -689,14 +725,21 @@ Round all numbers to whole integers. Use your best judgment.`
       }
 
       if (note) html += `<div class="today-note-display">"${escHtml(note)}"</div>`;
-      html += `<div onclick="openModal(${today.getFullYear()}, ${today.getMonth()}, ${today.getDate()})" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;padding:10px;cursor:pointer;border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:var(--muted);font-size:0.75rem;letter-spacing:0.5px;text-transform:uppercase;transition:all 0.2s" onmouseover="this.style.borderColor='var(--cyan)';this.style.color='var(--cyan)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.08)';this.style.color='var(--muted)'">
+      html += `<div onclick="openModal(${today.getFullYear()}, ${today.getMonth()}, ${today.getDate()})" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;padding:10px;cursor:pointer;border:2px solid rgba(255,255,255,0.08);color:var(--muted);font-size:0.75rem;letter-spacing:0.5px;text-transform:uppercase;transition:all 0.15s" onmouseover="this.style.borderColor='var(--cyan)';this.style.color='var(--cyan)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.08)';this.style.color='var(--muted)'">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         Edit Today's Entry
       </div>`;
       el.innerHTML = html;
     } else {
-      el.innerHTML = `<div class="today-empty">—</div><div class="today-big-sub">nothing logged yet today</div>
-        <div style="margin-top:12px;text-align:center;font-size:0.78rem;color:var(--muted)">Tap <strong style="color:var(--green)">+</strong> to log your first meal</div>`;
+      el.innerHTML = `<div class="empty-state">
+        <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="24" height="24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
+        <div class="empty-state-title">Nothing logged today</div>
+        <div class="empty-state-sub">Start tracking your calories to see progress toward your goal.</div>
+        <div class="empty-state-cta" onclick="toggleAddMenu()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Log your first meal
+        </div>
+      </div>`;
     }
     renderRecentStrip();
   }
@@ -969,7 +1012,7 @@ Round all numbers to whole integers. Use your best judgment.`
 
     const list = document.getElementById('presetList');
     list.innerHTML = presets.length === 0
-      ? '<div class="preset-empty">No presets yet.</div>'
+      ? '<div class="empty-state" style="padding:16px"><div class="empty-state-sub">No presets yet — add your go-to meals above for quick logging.</div></div>'
       : presets.map((p,i) => {
           const macStr = (p.p||p.c||p.f) ? `<span style="font-size:0.72rem;color:var(--muted2);margin-left:6px">P${p.p||0}g C${p.c||0}g F${p.f||0}g</span>` : '';
           return `<div class="preset-list-item"><span class="preset-item-name">${escHtml(p.name)}</span>${macStr}<span class="preset-item-cal">${p.cal.toLocaleString()} cal</span><button class="btn-icon" onclick="deletePreset(${i})">✕</button></div>`;
@@ -1160,7 +1203,11 @@ Round all numbers to whole integers. Use your best judgment.`
     }
 
     const el = document.getElementById('historyContent');
-    if (filtered.length===0) { el.innerHTML='<div class="history-empty">No data found. Start tracking to build your history.</div>'; return; }
+    if (filtered.length===0) { el.innerHTML=`<div class="empty-state">
+      <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="24" height="24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+      <div class="empty-state-title">${search ? 'No matches found' : 'No data yet'}</div>
+      <div class="empty-state-sub">${search ? 'Try a different search term or calorie filter like ">2000".' : 'Start logging meals and your history will appear here.'}</div>
+    </div>`; return; }
 
     let rows='';
     filtered.forEach(k=>{
@@ -1221,6 +1268,7 @@ Round all numbers to whole integers. Use your best judgment.`
     const savedCal = parseInt(val, 10);
     const savedKey = modalKey;
     closeModal(); refreshAll();
+    showToast(`Saved ${savedCal.toLocaleString()} cal`);
     maybeShame(savedCal, savedKey);
   }
 
@@ -1414,6 +1462,8 @@ Round all numbers to whole integers. Use your best judgment.`
     if (msg) {
       msg.innerHTML = `<span style="color:var(--green)">Your target is now ${dailyCal.toLocaleString()} cal/day · ${weeklyCal.toLocaleString()} cal/week</span>`;
     }
+    showSuccessBurst();
+    showToast(`Goal set: ${dailyCal.toLocaleString()} cal/day`);
 
     // Refresh the rest of the app with new goal
     renderGoalSummary();
@@ -1447,11 +1497,11 @@ Round all numbers to whole integers. Use your best judgment.`
 
     content.innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div style="text-align:center;padding:18px 12px;border-radius:10px;border:2px solid var(--green);background:rgba(16,185,129,0.05)">
+        <div style="text-align:center;padding:18px 12px;border:2px solid var(--green);background:rgba(16,185,129,0.05);box-shadow:3px 3px 0 rgba(0,255,65,0.15)">
           <div style="font-size:2.2rem;font-weight:700;color:var(--green);line-height:1">${dailyGoal.toLocaleString()}</div>
           <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:6px">cal / day</div>
         </div>
-        <div style="text-align:center;padding:18px 12px;border-radius:10px;border:2px solid var(--purple);background:rgba(139,92,246,0.05)">
+        <div style="text-align:center;padding:18px 12px;border:2px solid var(--purple);background:rgba(139,92,246,0.05);box-shadow:3px 3px 0 rgba(255,0,255,0.15)">
           <div style="font-size:2.2rem;font-weight:700;color:var(--purple);line-height:1">${s.weekly.toLocaleString()}</div>
           <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:6px">cal / week</div>
         </div>
