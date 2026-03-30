@@ -184,10 +184,11 @@
   function saveData(d) { lsSet(DATA_KEY, d); }
   function getSettings() {
     const raw = Object.assign({ weekly: 14000, macroP: 150, macroC: 200, macroF: 65, useMetric: false }, ls(SET_KEY, {}));
-    // Green/red thresholds: default to daily target and 20% over if not explicitly set
     const daily = Math.round(raw.weekly / 7);
-    if (!raw.green || raw.green < 50) raw.green = daily;
-    if (!raw.red   || raw.red < 100)  raw.red   = Math.round(daily * 1.2);
+    // Auto-correct green/red if missing or unreasonably low relative to daily target
+    // (catches old broken defaults like green=200 on a 2000 cal/day goal)
+    if (!raw.green || raw.green < daily * 0.5) raw.green = daily;
+    if (!raw.red   || raw.red   < daily * 0.6) raw.red   = Math.round(daily * 1.2);
     return raw;
   }
   function saveSettings() {
