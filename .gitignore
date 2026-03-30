@@ -1,0 +1,25 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# SSH keys — NEVER commit these
+SSH_key
+SSH_key.pub
+*.pem
+id_rsa
+id_ed25519
+
+# Environment / secrets
+.env
+.env.*
+
+# Claude Code
+.claude/
+
+# Editor
+.vscode/
+*.swp
+*~
+
+# Node (in case dependencies are added later)
+node_modules/
