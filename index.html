@@ -40,16 +40,14 @@
   <!-- ══════════ PAGE: HOME ══════════ -->
   <div class="page active" id="page-home">
 
-    <div class="app-header">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between">
-        <div>
-          <h1>BLUBR</h1>
-          <div class="app-subtitle">EAT. TRACK. REPEAT.</div>
-        </div>
-        <button onclick="showPage('settings')" aria-label="Settings" style="background:none;border:none;color:var(--muted);padding:8px;cursor:pointer;margin-top:4px;transition:color 0.2s" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='var(--muted)'">
+    <div class="app-header" style="position:relative;text-align:center">
+      <div>
+        <h1>BLUBR</h1>
+        <div class="app-subtitle">EAT. TRACK. REPEAT.</div>
+      </div>
+      <button onclick="showPage('settings')" aria-label="Settings" style="position:absolute;top:0;right:0;background:none;border:none;color:var(--muted);padding:8px;cursor:pointer;transition:color 0.2s" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='var(--muted)'">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
-      </div>
       <div class="app-date" id="appDate"></div>
     </div>
 
@@ -527,25 +525,36 @@
 <div class="overlay" id="overlay" onclick="overlayClick(event)">
   <div class="modal">
     <h3 id="modalTitle">Log Calories</h3>
-    <div class="modal-field">
-      <label>Calories</label>
-      <input type="number" id="modalInput" placeholder="Enter calories (or fill macros below)" min="0" max="99999">
+    <!-- Day summary -->
+    <div id="modalDaySummary"></div>
+    <!-- Meal list -->
+    <div id="modalMealList"></div>
+    <!-- Add/Edit meal form (toggled) -->
+    <div id="modalMealForm" style="display:none">
+      <div class="modal-field">
+        <label>Meal name</label>
+        <input type="text" id="modalMealName" placeholder="e.g. Chicken salad, Protein shake…">
+      </div>
+      <div class="modal-field">
+        <label>Calories</label>
+        <input type="number" id="modalInput" placeholder="Enter calories (or fill macros below)" min="0" max="99999">
+      </div>
+      <div class="modal-macro-lbl">Macronutrients (optional)</div>
+      <div class="modal-macro-row">
+        <div class="modal-macro-item"><label>Protein (g)</label><input type="number" id="modalProtein" placeholder="0" min="0" max="999" oninput="modalCalcMacros()"></div>
+        <div class="modal-macro-item"><label>Carbs (g)</label><input type="number" id="modalCarbs" placeholder="0" min="0" max="999" oninput="modalCalcMacros()"></div>
+        <div class="modal-macro-item"><label>Fat (g)</label><input type="number" id="modalFat" placeholder="0" min="0" max="999" oninput="modalCalcMacros()"></div>
+      </div>
     </div>
-    <div class="modal-macro-lbl">Macronutrients (optional)</div>
-    <div class="modal-macro-row">
-      <div class="modal-macro-item"><label>Protein (g)</label><input type="number" id="modalProtein" placeholder="0" min="0" max="999" oninput="modalCalcMacros()"></div>
-      <div class="modal-macro-item"><label>Carbs (g)</label><input type="number" id="modalCarbs" placeholder="0" min="0" max="999" oninput="modalCalcMacros()"></div>
-      <div class="modal-macro-item"><label>Fat (g)</label><input type="number" id="modalFat" placeholder="0" min="0" max="999" oninput="modalCalcMacros()"></div>
-    </div>
+    <!-- Notes + refeed (always visible) -->
     <div class="modal-field">
       <label>Notes (optional)</label>
       <textarea id="modalNote" placeholder="What did you eat? How did you feel?"></textarea>
     </div>
     <label class="modal-check"><input type="checkbox" id="modalRefeed"> Mark as refeed / planned cheat day</label>
-    <div class="modal-btns">
-      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-      <button class="btn-del" id="btnDel" onclick="deleteEntry()" style="display:none">Delete</button>
-      <button class="btn-save" onclick="saveModal()">Save</button>
+    <div class="modal-btns" id="modalBtns">
+      <button class="btn-cancel" onclick="closeModal()">Close</button>
+      <button class="btn-save" id="btnModalAdd" onclick="showModalMealForm(-1)">+ Add Meal</button>
     </div>
   </div>
 </div>

@@ -14,7 +14,7 @@
   let _cache = {
     ct_data: {}, ct_macros: {}, ct_notes: {}, ct_refeed: {},
     ct_weights: {}, ct_presets: [], ct_settings: {}, ct_calc: {},
-    ct_photos: {}
+    ct_photos: {}, ct_meals: {}
   };
   let _currentUser = null;
   let _syncTimer   = null;
@@ -28,7 +28,7 @@
       .single();
     if (error && error.code !== 'PGRST116') { console.error('Load error:', error); return; }
     if (data) {
-      const keys = ['ct_data','ct_macros','ct_notes','ct_refeed','ct_weights','ct_presets','ct_settings','ct_calc','ct_photos'];
+      const keys = ['ct_data','ct_macros','ct_notes','ct_refeed','ct_weights','ct_presets','ct_settings','ct_calc','ct_photos','ct_meals'];
       keys.forEach(k => { if (data[k] !== undefined) _cache[k] = data[k]; });
     }
     await _migrateLocalStorage();
@@ -39,7 +39,7 @@
                  || Object.keys(_cache.ct_weights).length > 0
                  || (_cache.ct_presets && _cache.ct_presets.length > 0);
     if (hasData) return;
-    const keys = ['ct_data','ct_macros','ct_notes','ct_refeed','ct_weights','ct_presets','ct_settings','ct_calc','ct_photos'];
+    const keys = ['ct_data','ct_macros','ct_notes','ct_refeed','ct_weights','ct_presets','ct_settings','ct_calc','ct_photos','ct_meals'];
     let foundAny = false;
     keys.forEach(k => {
       try { const v = JSON.parse(localStorage.getItem(k)); if (v !== null) { _cache[k] = v; foundAny = true; } } catch {}
@@ -71,6 +71,7 @@
   const PRESETS_KEY = 'ct_presets';
   const CALC_KEY    = 'ct_calc';
   const MACROS_KEY  = 'ct_macros';
+  const MEALS_KEY   = 'ct_meals';
 
   let viewYear  = new Date().getFullYear();
   let viewMonth = new Date().getMonth();
@@ -137,7 +138,7 @@
   async function authLogout() {
     await _flushToSupabase();
     await _sb.auth.signOut();
-    _cache = { ct_data:{}, ct_macros:{}, ct_notes:{}, ct_refeed:{}, ct_weights:{}, ct_presets:[], ct_settings:{}, ct_calc:{}, ct_photos:{} };
+    _cache = { ct_data:{}, ct_macros:{}, ct_notes:{}, ct_refeed:{}, ct_weights:{}, ct_presets:[], ct_settings:{}, ct_calc:{}, ct_photos:{}, ct_meals:{} };
     _currentUser = null;
     _initialized = false;  // Reset so init() re-runs on next login
     showAuthOverlay(true);
@@ -427,17 +428,9 @@
       msg.innerHTML = '<span style="color:var(--red)">Enter a date and calories.</span>';
       return;
     }
-    const data = getData();
-    data[dateKey] = (data[dateKey] || 0) + cal;
-    saveData(data);
-    if (p || c || f) {
-      const macros = ls(MACROS_KEY, {});
-      const ex = macros[dateKey] || { p:0, c:0, f:0 };
-      macros[dateKey] = { p: ex.p+p, c: ex.c+c, f: ex.f+f };
-      lsSet(MACROS_KEY, macros);
-    }
+    _addMeal(dateKey, 'Quick Log', cal, p, c, f);
     refreshAll();
-    maybeShame(data[dateKey], dateKey);
+    maybeShame(getData()[dateKey], dateKey);
     showSuccessBurst();
     showToast(`Logged ${cal} cal for ${dateKey}`);
 
@@ -677,19 +670,10 @@ Round all numbers to whole integers. Use your best judgment.`
     const msg     = document.getElementById('addFormMsg');
     if (!dateKey) { msg.innerHTML = '<span style="color:var(--red)">Select a date.</span>'; return; }
 
-    const data = getData();
-    data[dateKey] = (data[dateKey] || 0) + m.calories;
-    saveData(data);
-
-    if (m.protein || m.carbs || m.fat) {
-      const macros = ls(MACROS_KEY, {});
-      const ex = macros[dateKey] || { p:0, c:0, f:0 };
-      macros[dateKey] = { p: ex.p + (m.protein||0), c: ex.c + (m.carbs||0), f: ex.f + (m.fat||0) };
-      lsSet(MACROS_KEY, macros);
-    }
-
+    const mealName = m.notes || 'AI Scan';
+    _addMeal(dateKey, mealName, m.calories, m.protein||0, m.carbs||0, m.fat||0);
     refreshAll();
-    maybeShame(data[dateKey], dateKey);
+    maybeShame(getData()[dateKey], dateKey);
     showSuccessBurst();
     showToast(`Logged ${m.calories} cal via AI scan`);
     msg.innerHTML = `<span style="color:var(--green)">✓ Logged ${m.calories} cal!</span>`;
@@ -912,16 +896,59 @@ Round all numbers to whole integers. Use your best judgment.`
   }
 
   /* ── SHARED LOG HELPER ── */
+  /* ── PER-MEAL LOGGING ── */
+  function _addMeal(dateKey, name, cal, p, c, f) {
+    if (!dateKey || !cal) return false;
+    cal = parseInt(cal, 10); p = p||0; c = c||0; f = f||0;
+    const meals = ls(MEALS_KEY, {});
+    if (!meals[dateKey]) meals[dateKey] = [];
+    meals[dateKey].push({ name: name||'Meal', cal, p, c, f, ts: Date.now() });
+    lsSet(MEALS_KEY, meals);
+    _recalcDay(dateKey);
+    return true;
+  }
+
+  function _recalcDay(dateKey) {
+    const meals = ls(MEALS_KEY, {});
+    const dayMeals = meals[dateKey] || [];
+    const data = getData();
+    const macros = ls(MACROS_KEY, {});
+    if (dayMeals.length === 0) {
+      delete data[dateKey]; delete macros[dateKey];
+    } else {
+      let totalCal=0, totalP=0, totalC=0, totalF=0;
+      dayMeals.forEach(m => { totalCal+=m.cal; totalP+=m.p||0; totalC+=m.c||0; totalF+=m.f||0; });
+      data[dateKey] = totalCal;
+      if (totalP||totalC||totalF) macros[dateKey] = {p:totalP, c:totalC, f:totalF};
+      else delete macros[dateKey];
+    }
+    saveData(data);
+    lsSet(MACROS_KEY, macros);
+  }
+
+  function _deleteMeal(dateKey, index) {
+    const meals = ls(MEALS_KEY, {});
+    if (!meals[dateKey]) return;
+    meals[dateKey].splice(index, 1);
+    if (meals[dateKey].length === 0) delete meals[dateKey];
+    lsSet(MEALS_KEY, meals);
+    _recalcDay(dateKey);
+  }
+
+  function _updateMeal(dateKey, index, name, cal, p, c, f) {
+    const meals = ls(MEALS_KEY, {});
+    if (!meals[dateKey] || !meals[dateKey][index]) return;
+    meals[dateKey][index] = { ...meals[dateKey][index], name, cal: parseInt(cal,10), p:p||0, c:c||0, f:f||0 };
+    lsSet(MEALS_KEY, meals);
+    _recalcDay(dateKey);
+  }
+
+  /* Legacy compat: _doLog now adds a meal */
   function _doLog(dateVal, calVal, p, c, f) {
     if (!dateVal || calVal === '') return false;
-    const [y, m, d] = dateVal.split('-').map(Number);
-    const key  = makeKey(y, m-1, d);
-    const data = getData();
-    data[key]  = parseInt(calVal, 10);
-    saveData(data);
-    if (p || c || f) { const macros = ls(MACROS_KEY, {}); macros[key] = { p, c, f }; lsSet(MACROS_KEY, macros); }
+    _addMeal(dateVal, 'Meal', parseInt(calVal,10), p, c, f);
     refreshAll();
-    maybeShame(parseInt(calVal, 10), key);
+    maybeShame(getData()[dateVal], dateVal);
     return true;
   }
 
@@ -1111,11 +1138,12 @@ Round all numbers to whole integers. Use your best judgment.`
     renderPresets();
   }
 
-  function applyPreset(cal, p, c, f) {
+  function applyPreset(name, cal, p, c, f) {
     const today = new Date();
     const pad = n => String(n).padStart(2,'0');
     const dateKey = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
-    _doLog(dateKey, cal, p||0, c||0, f||0);
+    _addMeal(dateKey, name, cal, p||0, c||0, f||0);
+    refreshAll();
     showSuccessBurst();
     showToast(`Logged ${cal} cal`);
   }
@@ -1126,7 +1154,7 @@ Round all numbers to whole integers. Use your best judgment.`
     chips.innerHTML = presets.length === 0
       ? ''
       : '<div style="font-size:0.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Tap to log today</div>' +
-        presets.map(p => `<div class="preset-chip" onclick="applyPreset(${p.cal},${p.p||0},${p.c||0},${p.f||0})">${escHtml(p.name)}<span class="preset-chip-cal">${p.cal.toLocaleString()}</span></div>`).join('');
+        presets.map(p => `<div class="preset-chip" onclick="applyPreset('${escHtml(p.name).replace(/'/g,"\\'")}',${p.cal},${p.p||0},${p.c||0},${p.f||0})">${escHtml(p.name)}<span class="preset-chip-cal">${p.cal.toLocaleString()}</span></div>`).join('');
 
     const list = document.getElementById('presetList');
     list.innerHTML = presets.length === 0
@@ -1345,57 +1373,213 @@ Round all numbers to whole integers. Use your best judgment.`
     el.innerHTML=`<table class="history-table"><thead><tr><th>Date</th><th>Calories / Macros</th><th>Weight</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
-  /* ── MODAL ── */
+  /* ── MODAL (per-meal view) ── */
+  let _modalEditIdx = -1;  // -1 = adding new meal, 0+ = editing existing
+
   function openModal(y, m, d) {
     modalKey = makeKey(y, m, d);
-    const data=getData(), notes=ls(NOTES_KEY,{}), refeed=ls(REFEED_KEY,{}), macros=ls(MACROS_KEY,{});
-    const existing=data[modalKey], mac=macros[modalKey]||{};
-    document.getElementById('modalTitle').textContent=`${MONTHS[m]} ${d}, ${y}`;
-    document.getElementById('modalInput').value=existing!==undefined?existing:'';
-    document.getElementById('modalProtein').value=mac.p||''; document.getElementById('modalCarbs').value=mac.c||''; document.getElementById('modalFat').value=mac.f||'';
-    document.getElementById('modalNote').value=notes[modalKey]||'';
-    document.getElementById('modalRefeed').checked=!!refeed[modalKey];
-    document.getElementById('btnDel').style.display=existing!==undefined?'inline-block':'none';
+    _modalEditIdx = -1;
+    document.getElementById('modalTitle').textContent = `${MONTHS[m]} ${d}, ${y}`;
+
+    // Notes + refeed
+    const notes = ls(NOTES_KEY, {}), refeed = ls(REFEED_KEY, {});
+    document.getElementById('modalNote').value = notes[modalKey] || '';
+    document.getElementById('modalRefeed').checked = !!refeed[modalKey];
+
+    // Hide meal form, show meal list
+    document.getElementById('modalMealForm').style.display = 'none';
+    _renderModalMeals();
+    _renderModalButtons('list');
+
     document.getElementById('overlay').classList.add('show');
-    setTimeout(()=>document.getElementById('modalInput').focus(),50);
   }
 
-  function closeModal() { document.getElementById('overlay').classList.remove('show'); modalKey=null; }
+  function _renderModalMeals() {
+    const meals = ls(MEALS_KEY, {});
+    const dayMeals = meals[modalKey] || [];
+    const data = getData();
+    const totalCal = data[modalKey] || 0;
+    const macros = ls(MACROS_KEY, {});
+    const mac = macros[modalKey] || {};
+
+    // Day summary
+    const summaryEl = document.getElementById('modalDaySummary');
+    if (totalCal > 0) {
+      const macStr = (mac.p||mac.c||mac.f)
+        ? `<div style="font-size:0.78rem;color:var(--muted);margin-top:2px">P ${mac.p||0}g · C ${mac.c||0}g · F ${mac.f||0}g</div>`
+        : '';
+      summaryEl.innerHTML = `<div style="text-align:center;padding:8px 0 12px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:12px">
+        <div style="font-size:1.6rem;font-weight:700;color:var(--green)">${totalCal.toLocaleString()} <span style="font-size:0.75rem;font-weight:500;color:var(--muted)">cal total</span></div>
+        ${macStr}
+      </div>`;
+    } else {
+      summaryEl.innerHTML = `<div style="text-align:center;padding:12px 0;color:var(--muted);font-size:0.85rem">No meals logged yet</div>`;
+    }
+
+    // Meal list
+    const listEl = document.getElementById('modalMealList');
+    if (dayMeals.length === 0) {
+      // Check if there's legacy data (total but no meals)
+      if (totalCal > 0) {
+        listEl.innerHTML = `<div class="modal-meal-item" style="border:2px dashed rgba(255,255,255,0.12);padding:10px 12px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-weight:600;font-size:0.88rem">Logged total</div>
+              <div style="font-size:0.72rem;color:var(--muted2);margin-top:2px">Legacy entry (not itemized)</div>
+            </div>
+            <div style="font-weight:700;color:var(--yellow)">${totalCal.toLocaleString()} cal</div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button class="btn-modal-meal-action" onclick="convertLegacyMeal()">Convert to meal</button>
+            <button class="btn-modal-meal-action btn-modal-meal-del" onclick="deleteLegacyDay()">Delete</button>
+          </div>
+        </div>`;
+      } else {
+        listEl.innerHTML = '';
+      }
+    } else {
+      listEl.innerHTML = dayMeals.map((meal, i) => {
+        const macLine = (meal.p||meal.c||meal.f)
+          ? `<div style="font-size:0.7rem;color:var(--muted2);margin-top:1px">P${meal.p||0}g C${meal.c||0}g F${meal.f||0}g</div>`
+          : '';
+        return `<div class="modal-meal-item" style="border:2px solid rgba(255,255,255,0.08);padding:10px 12px;margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:0.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(meal.name)}</div>
+              ${macLine}
+            </div>
+            <div style="font-weight:700;font-size:0.95rem;color:var(--yellow);margin-left:12px;white-space:nowrap">${meal.cal.toLocaleString()} cal</div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button class="btn-modal-meal-action" onclick="showModalMealForm(${i})">Edit</button>
+            <button class="btn-modal-meal-action btn-modal-meal-del" onclick="modalDeleteMeal(${i})">Delete</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  function _renderModalButtons(mode) {
+    const btns = document.getElementById('modalBtns');
+    if (mode === 'list') {
+      btns.innerHTML = `
+        <button class="btn-cancel" onclick="closeModal()">Close</button>
+        <button class="btn-save" onclick="showModalMealForm(-1)">+ Add Meal</button>`;
+    } else {
+      btns.innerHTML = `
+        <button class="btn-cancel" onclick="cancelModalMealForm()">Cancel</button>
+        <button class="btn-save" onclick="saveModalMeal()">Save Meal</button>`;
+    }
+  }
+
+  function showModalMealForm(idx) {
+    _modalEditIdx = idx;
+    const form = document.getElementById('modalMealForm');
+    form.style.display = 'block';
+    if (idx >= 0) {
+      const meals = ls(MEALS_KEY, {});
+      const meal = (meals[modalKey] || [])[idx];
+      if (meal) {
+        document.getElementById('modalMealName').value = meal.name || '';
+        document.getElementById('modalInput').value = meal.cal || '';
+        document.getElementById('modalProtein').value = meal.p || '';
+        document.getElementById('modalCarbs').value = meal.c || '';
+        document.getElementById('modalFat').value = meal.f || '';
+      }
+    } else {
+      document.getElementById('modalMealName').value = '';
+      document.getElementById('modalInput').value = '';
+      document.getElementById('modalProtein').value = '';
+      document.getElementById('modalCarbs').value = '';
+      document.getElementById('modalFat').value = '';
+    }
+    _renderModalButtons('form');
+    setTimeout(() => document.getElementById('modalMealName').focus(), 50);
+  }
+
+  function cancelModalMealForm() {
+    document.getElementById('modalMealForm').style.display = 'none';
+    _renderModalButtons('list');
+    _modalEditIdx = -1;
+  }
+
+  function saveModalMeal() {
+    if (!modalKey) return;
+    const name = (document.getElementById('modalMealName').value || '').trim() || 'Meal';
+    const cal = parseInt(document.getElementById('modalInput').value);
+    if (isNaN(cal) || cal <= 0) return;
+    const p = parseFloat(document.getElementById('modalProtein').value) || 0;
+    const c = parseFloat(document.getElementById('modalCarbs').value) || 0;
+    const f = parseFloat(document.getElementById('modalFat').value) || 0;
+
+    if (_modalEditIdx >= 0) {
+      _updateMeal(modalKey, _modalEditIdx, name, cal, p, c, f);
+    } else {
+      _addMeal(modalKey, name, cal, p, c, f);
+    }
+    // Save notes + refeed too
+    _saveModalMeta();
+    document.getElementById('modalMealForm').style.display = 'none';
+    _modalEditIdx = -1;
+    _renderModalMeals();
+    _renderModalButtons('list');
+    refreshAll();
+    showToast(`${_modalEditIdx >= 0 ? 'Updated' : 'Added'} ${cal.toLocaleString()} cal`);
+  }
+
+  function modalDeleteMeal(idx) {
+    if (!modalKey) return;
+    _deleteMeal(modalKey, idx);
+    _saveModalMeta();
+    _renderModalMeals();
+    refreshAll();
+    showToast('Meal deleted');
+  }
+
+  function convertLegacyMeal() {
+    if (!modalKey) return;
+    const data = getData();
+    const macros = ls(MACROS_KEY, {});
+    const totalCal = data[modalKey] || 0;
+    const mac = macros[modalKey] || {};
+    _addMeal(modalKey, 'Logged total', totalCal, mac.p||0, mac.c||0, mac.f||0);
+    _renderModalMeals();
+    refreshAll();
+  }
+
+  function deleteLegacyDay() {
+    if (!modalKey) return;
+    const data=getData(), notes=ls(NOTES_KEY,{}), refeed=ls(REFEED_KEY,{}), macros=ls(MACROS_KEY,{});
+    delete data[modalKey]; delete notes[modalKey]; delete refeed[modalKey]; delete macros[modalKey];
+    saveData(data); lsSet(NOTES_KEY,notes); lsSet(REFEED_KEY,refeed); lsSet(MACROS_KEY,macros);
+    _renderModalMeals();
+    refreshAll();
+    showToast('Day cleared');
+  }
+
+  function _saveModalMeta() {
+    const notes = ls(NOTES_KEY, {}), refeed = ls(REFEED_KEY, {});
+    const note = document.getElementById('modalNote').value.trim();
+    if (note) notes[modalKey] = note; else delete notes[modalKey];
+    if (document.getElementById('modalRefeed').checked) refeed[modalKey] = true; else delete refeed[modalKey];
+    lsSet(NOTES_KEY, notes); lsSet(REFEED_KEY, refeed);
+  }
+
+  function closeModal() {
+    // Save notes/refeed on close
+    if (modalKey) _saveModalMeta();
+    document.getElementById('overlay').classList.remove('show');
+    document.getElementById('modalMealForm').style.display = 'none';
+    modalKey = null;
+    _modalEditIdx = -1;
+    refreshAll();
+  }
   function overlayClick(e) { if (e.target===document.getElementById('overlay')) closeModal(); }
   function modalCalcMacros() {
     const p=parseFloat(document.getElementById('modalProtein').value)||0;
     const c=parseFloat(document.getElementById('modalCarbs').value)||0;
     const f=parseFloat(document.getElementById('modalFat').value)||0;
     if (p||c||f) document.getElementById('modalInput').value=Math.round(p*4+c*4+f*9);
-  }
-
-  function saveModal() {
-    if (!modalKey) return;
-    const val=document.getElementById('modalInput').value;
-    if (val==='') return;
-    const data=getData(), notes=ls(NOTES_KEY,{}), refeed=ls(REFEED_KEY,{}), macros=ls(MACROS_KEY,{});
-    data[modalKey]=parseInt(val,10);
-    const note=document.getElementById('modalNote').value.trim();
-    if (note) notes[modalKey]=note; else delete notes[modalKey];
-    if (document.getElementById('modalRefeed').checked) refeed[modalKey]=true; else delete refeed[modalKey];
-    const p=parseFloat(document.getElementById('modalProtein').value)||0;
-    const c=parseFloat(document.getElementById('modalCarbs').value)||0;
-    const f=parseFloat(document.getElementById('modalFat').value)||0;
-    if (p||c||f) macros[modalKey]={p,c,f}; else delete macros[modalKey];
-    saveData(data); lsSet(NOTES_KEY,notes); lsSet(REFEED_KEY,refeed); lsSet(MACROS_KEY,macros);
-    const savedCal = parseInt(val, 10);
-    const savedKey = modalKey;
-    closeModal(); refreshAll();
-    showToast(`Saved ${savedCal.toLocaleString()} cal`);
-    maybeShame(savedCal, savedKey);
-  }
-
-  function deleteEntry() {
-    if (!modalKey) return;
-    const data=getData(), notes=ls(NOTES_KEY,{}), refeed=ls(REFEED_KEY,{}), macros=ls(MACROS_KEY,{});
-    delete data[modalKey]; delete notes[modalKey]; delete refeed[modalKey]; delete macros[modalKey];
-    saveData(data); lsSet(NOTES_KEY,notes); lsSet(REFEED_KEY,refeed); lsSet(MACROS_KEY,macros);
-    closeModal(); refreshAll();
   }
 
   /* ── EXPORT ── */
@@ -1666,7 +1850,7 @@ Round all numbers to whole integers. Use your best judgment.`
   }
 
   /* ── KEYBOARD ── */
-  document.getElementById('modalInput')?.addEventListener('keydown', e=>{ if(e.key==='Enter') saveModal(); if(e.key==='Escape') closeModal(); });
+  document.getElementById('modalInput')?.addEventListener('keydown', e=>{ if(e.key==='Enter') saveModalMeal(); if(e.key==='Escape') closeModal(); });
   document.getElementById('wtVal')?.addEventListener('keydown',     e=>{ if(e.key==='Enter') logWeight(); });
   document.getElementById('pCal')?.addEventListener('keydown',      e=>{ if(e.key==='Enter') addPreset(); });
   document.getElementById('pName')?.addEventListener('keydown',     e=>{ if(e.key==='Enter') document.getElementById('pCal').focus(); });
