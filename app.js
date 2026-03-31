@@ -2230,6 +2230,81 @@ Round all numbers to whole integers. Use your best judgment.`
     lsSet(TDEE_KEY, tdeeData);
   }
 
+  function renderTDEETrend() {
+    const s = getSettings();
+    const card = document.getElementById('tdeeTrendCard');
+    if (!card) return;
+    if (!s.features.tdeeTrend) { card.style.display = 'none'; return; }
+    const tdeeData = ls(TDEE_KEY, {});
+    const keys = Object.keys(tdeeData).sort().slice(-60);
+    if (keys.length < 7) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const latest = tdeeData[keys[keys.length-1]];
+    const staticTDEE = getStaticTDEE();
+
+    let html = `<div style="text-align:center;margin-bottom:12px">
+      <div style="font-size:2rem;font-weight:700;color:var(--cyan)">${latest.toLocaleString()}</div>
+      <div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px">estimated cal/day</div>
+      ${staticTDEE ? `<div style="font-size:0.68rem;color:var(--muted2);margin-top:4px">Calculator TDEE: ${staticTDEE.toLocaleString()}</div>` : ''}
+    </div>`;
+
+    const vals = keys.map(k => tdeeData[k]);
+    const min = Math.min(...vals) - 50, max = Math.max(...vals) + 50;
+    const w = 300, h = 50;
+    const pts = vals.map((v, i) => `${(i/(vals.length-1)*w).toFixed(1)},${((max-v)/(max-min)*h).toFixed(1)}`).join(' ');
+    html += `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:50px">
+      <polyline points="${pts}" fill="none" stroke="var(--cyan)" stroke-width="2"/>
+    </svg>`;
+
+    document.getElementById('tdeeTrendContent').innerHTML = html;
+  }
+
+  function renderEnergyBalance() {
+    const s = getSettings();
+    const card = document.getElementById('energyBalanceCard');
+    if (!card) return;
+    if (!s.features.energyBalance) { card.style.display = 'none'; return; }
+    const tdeeData = ls(TDEE_KEY, {});
+    const data = getData();
+    const today = new Date(); today.setHours(0,0,0,0);
+    const days = [];
+    for (let i = 59; i >= 0; i--) {
+      const d = new Date(today); d.setDate(today.getDate() - i);
+      const key = makeKey(d.getFullYear(), d.getMonth(), d.getDate());
+      days.push({ date: d, cal: data[key], tdee: tdeeData[key] });
+    }
+    const hasTDEE = days.some(d => d.tdee);
+    if (!hasTDEE) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const W=800,H=180,P={l:48,r:20,t:14,b:28};
+    const pw=W-P.l-P.r, ph=H-P.t-P.b;
+    const allVals = days.filter(d=>d.cal||d.tdee).flatMap(d=>[d.cal,d.tdee].filter(Boolean));
+    if (allVals.length === 0) { card.style.display = 'none'; return; }
+    const maxV = Math.max(...allVals)*1.1, minV = Math.min(...allVals)*0.8;
+    const yS = v => P.t+((maxV-v)/(maxV-minV))*ph;
+
+    let html = '';
+    for(let i=0;i<=4;i++){const v=minV+((maxV-minV)*(4-i)/4),y=P.t+(i/4)*ph;const lbl=v>=1000?(v/1000).toFixed(1)+'k':Math.round(v);html+=`<line x1="${P.l}" y1="${y.toFixed(1)}" x2="${W-P.r}" y2="${y.toFixed(1)}" stroke="#1a1535" stroke-width="1"/><text x="${P.l-5}" y="${(y+4).toFixed(1)}" text-anchor="end" fill="#6b7280" font-size="11">${lbl}</text>`;}
+
+    const tdeePts=[];
+    days.forEach((d,i)=>{
+      const x=P.l+i*(pw/60);
+      if(d.tdee)tdeePts.push({x,y:yS(d.tdee)});
+    });
+
+    const calAvg=[];
+    for(let i=0;i<60;i++){const slice=days.slice(Math.max(0,i-6),i+1).filter(d=>d.cal!==undefined);if(slice.length>=2){const avg=slice.reduce((s,d)=>s+d.cal,0)/slice.length;calAvg.push(`${(P.l+i*(pw/60)).toFixed(1)},${yS(avg).toFixed(1)}`);}}
+    if(calAvg.length>1)html+=`<polyline points="${calAvg.join(' ')}" fill="none" stroke="#00d4ff" stroke-width="2.5"/>`;
+
+    if(tdeePts.length>1){const pts=tdeePts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');html+=`<polyline points="${pts}" fill="none" stroke="#8b5cf6" stroke-width="2.5" stroke-dasharray="6,3"/>`;}
+
+    for(let i=0;i<60;i+=10){const d=days[i].date;const x=P.l+i*(pw/60);html+=`<text x="${x.toFixed(1)}" y="${H-4}" text-anchor="middle" fill="#6b7280" font-size="10">${d.getMonth()+1}/${d.getDate()}</text>`;}
+
+    document.getElementById('energySvg').innerHTML=html;
+  }
+
   /* ── INIT ── */
   function refreshAll() {
     renderToday();
@@ -2247,6 +2322,8 @@ Round all numbers to whole integers. Use your best judgment.`
     renderWeeklyBudget();
     renderStreakGrid();
     renderCopyLastMeal();
+    renderTDEETrend();
+    renderEnergyBalance();
   }
 
   /* ── COPY MEAL ── */

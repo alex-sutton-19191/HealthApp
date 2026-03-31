@@ -170,6 +170,24 @@
       </div>
     </div>
 
+    <div class="card" id="tdeeTrendCard" style="display:none">
+      <div class="card-title">Adaptive TDEE</div>
+      <div id="tdeeTrendContent"></div>
+    </div>
+
+    <div class="card" id="energyBalanceCard" style="display:none">
+      <div class="card-title">Energy Balance — Last 60 Days</div>
+      <div class="chart-area">
+        <svg id="energySvg" viewBox="0 0 800 180"></svg>
+      </div>
+      <div style="display:flex;gap:14px;margin-top:8px;font-size:0.78rem;">
+        <span style="color:#00d4ff">■ Intake</span>
+        <span style="color:#8b5cf6">■ TDEE</span>
+        <span style="color:rgba(16,185,129,0.3)">■ Deficit</span>
+        <span style="color:rgba(239,68,68,0.3)">■ Surplus</span>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-title">Calorie History — Last 30 Days</div>
       <div class="chart-area">
