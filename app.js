@@ -2830,20 +2830,27 @@ Round all numbers to whole integers. Use your best judgment.`
   }
 
   /* ── FEATURE TOGGLES ── */
-  const FEATURE_LABELS = {
-    tdeeTrend: 'TDEE Trend', weeklyBudget: 'Weekly Calorie Budget', macroRings: 'Macro Rings',
-    streakGrid: 'Streak & Consistency', energyBalance: 'Energy Balance', goalWaterfall: 'Goal Waterfall',
-    smoothedWeight: 'Smoothed Weight Trend', copyMeal: 'Quick Copy Meal', coachCountdown: 'Coach Countdown'
+  const FEATURE_TOGGLES = {
+    tdeeTrend: { label: 'TDEE Trend', desc: 'Adaptive estimate of your daily calorie burn based on real weight + intake data.' },
+    weeklyBudget: { label: 'Weekly Calorie Budget', desc: 'Visual bar showing calories consumed vs. your weekly total. Integrates with calorie banking.' },
+    macroRings: { label: 'Macro Rings', desc: 'Circular progress rings for protein, carbs, and fat on the Today card.' },
+    streakGrid: { label: 'Streak & Consistency', desc: 'GitHub-style heatmap of the last 91 days showing your logging streak.' },
+    energyBalance: { label: 'Energy Balance', desc: '60-day chart comparing your intake vs. expenditure with deficit/surplus shading.' },
+    goalWaterfall: { label: 'Goal Waterfall', desc: 'Daily weight changes toward or away from your goal, using smoothed data.' },
+    smoothedWeight: { label: 'Smoothed Weight Trend', desc: 'EMA trend line on your weight chart that filters out daily fluctuations.' },
+    copyMeal: { label: 'Quick Copy Meal', desc: 'One-tap card to re-log your most recent meal.' },
+    coachCountdown: { label: 'Coach Countdown', desc: 'Shows when your next AI coaching check-in is and last week\'s advice.' }
   };
 
   function renderFeatureToggles() {
     const s = getSettings();
     const el = document.getElementById('featureToggles');
     if (!el) return;
-    el.innerHTML = Object.entries(FEATURE_LABELS).map(([key, label]) => {
+    el.innerHTML = Object.entries(FEATURE_TOGGLES).map(([key, { label, desc }]) => {
       const checked = s.features[key] !== false ? 'checked' : '';
-      return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:0.82rem;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05)">
-        <input type="checkbox" ${checked} onchange="saveFeatureToggle('${key}',this.checked)" style="width:auto;accent-color:var(--cyan)"> ${label}
+      return `<label style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;font-size:0.82rem;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05)">
+        <input type="checkbox" ${checked} onchange="saveFeatureToggle('${key}',this.checked)" style="width:auto;accent-color:var(--cyan);margin-top:2px">
+        <span><strong>${label}</strong><br><span style="font-size:0.74rem;color:var(--muted);line-height:1.5">${desc}</span></span>
       </label>`;
     }).join('');
   }
