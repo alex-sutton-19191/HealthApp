@@ -50,7 +50,7 @@ body {
   background-size: 8px 8px;
   color: var(--text);
   min-height: 100vh;
-  padding: 28px 16px 100px;
+  padding: calc(28px + env(safe-area-inset-top, 0px)) 16px 100px;
 }
 
 .container { max-width: 880px; margin: 0 auto; }
@@ -736,7 +736,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 
 /* ══════════ MOBILE ══════════ */
 @media (max-width: 600px) {
-  body { padding: 20px 12px calc(88px + env(safe-area-inset-bottom, 0px)); }
+  body { padding: calc(20px + env(safe-area-inset-top, 0px)) 12px calc(88px + env(safe-area-inset-bottom, 0px)); }
 
   /* Logo — keep the drama, just a touch smaller */
   h1 { font-size: 2rem; letter-spacing: 4px; }
