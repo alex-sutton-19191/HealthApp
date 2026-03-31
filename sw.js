@@ -1,4 +1,4 @@
-const CACHE_NAME = 'blubr-v1';
+const CACHE_NAME = 'blubr-v2';
 const PRECACHE = [
   '/',
   '/index.html',
@@ -25,7 +25,7 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Fetch: network-first for API calls, cache-first for app shell
+// Fetch: network-first for app shell, cache fallback for offline
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
@@ -34,19 +34,14 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Cache-first for app shell and static assets
+  // Network-first: try fresh content, fall back to cache when offline
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      const fetched = fetch(e.request).then(response => {
-        // Update cache with fresh copy
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
-        }
-        return response;
-      }).catch(() => cached); // Offline fallback to cache
-
-      return cached || fetched;
-    })
+    fetch(e.request).then(response => {
+      if (response.ok) {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+      }
+      return response;
+    }).catch(() => caches.match(e.request))
   );
 });
