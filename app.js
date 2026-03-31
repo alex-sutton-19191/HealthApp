@@ -1077,6 +1077,7 @@ Round all numbers to whole integers. Use your best judgment.`
     }
     saveData(data);
     lsSet(MACROS_KEY, macros);
+    _scheduleTDEERecalc();
   }
 
   function _deleteMeal(dateKey, index) {
@@ -1333,6 +1334,7 @@ Round all numbers to whole integers. Use your best judgment.`
     document.getElementById('wtVal').value = '';
     renderWeightChart();
     checkRecalcBanner();
+    _scheduleTDEERecalc();
   }
 
   function checkRecalcBanner() {
@@ -2161,6 +2163,71 @@ Round all numbers to whole integers. Use your best judgment.`
     refreshAll();
     showToast(`Logged ${lastMeal.cal.toLocaleString()} cal`);
     showSuccessBurst();
+  }
+
+  /* ── ADAPTIVE TDEE ── */
+  let _tdeeTimer = null;
+
+  function _scheduleTDEERecalc() {
+    clearTimeout(_tdeeTimer);
+    _tdeeTimer = setTimeout(_recalcTDEE, 1500);
+  }
+
+  function _recalcTDEE() {
+    const data = getData();
+    const weights = ls(WEIGHTS_KEY, {});
+    const calDays = Object.keys(data).sort();
+    const wtDays = Object.keys(weights).sort();
+    if (calDays.length < 14 || wtDays.length < 5) return;
+
+    const allDates = [...new Set([...calDays, ...wtDays])].sort();
+    if (allDates.length < 14) return;
+    const last28 = allDates.slice(-28);
+    const firstDate = new Date(last28[0] + 'T12:00:00');
+    const lastDate = new Date(last28[last28.length-1] + 'T12:00:00');
+
+    const dailySeries = [];
+    const cur = new Date(firstDate);
+    let lastWeight = null;
+    for (const d of wtDays) { if (d >= last28[0]) { lastWeight = weights[d]; break; } }
+    if (!lastWeight) { for (const d of wtDays.slice().reverse()) { lastWeight = weights[d]; break; } }
+    if (!lastWeight) return;
+
+    while (cur <= lastDate) {
+      const key = makeKey(cur.getFullYear(), cur.getMonth(), cur.getDate());
+      const w = weights[key] !== undefined ? weights[key] : null;
+      const c = data[key] !== undefined ? data[key] : null;
+      if (w !== null) lastWeight = w;
+      dailySeries.push({ date: key, weight: lastWeight, cal: c });
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    if (dailySeries.length < 14) return;
+
+    const weightVals = dailySeries.map(d => d.weight);
+    const weightEma = calcEMA(weightVals, 0.1);
+    const calVals = dailySeries.map(d => d.cal);
+    let runSum = 0, runCnt = 0;
+    calVals.forEach(c => { if (c !== null) { runSum += c; runCnt++; } });
+    const avgCal = runCnt > 0 ? runSum / runCnt : 2000;
+    const filledCals = calVals.map(c => c !== null ? c : avgCal);
+    const calEma = calcEMA(filledCals, 0.1);
+
+    const tdeeData = ls(TDEE_KEY, {});
+    for (let i = 1; i < dailySeries.length; i++) {
+      let dailyWeightChange = weightEma[i] - weightEma[i-1];
+      const dailyEnergyFromWeight = dailyWeightChange * 3500;
+      let tdee = calEma[i] + (-dailyEnergyFromWeight);
+      tdee = Math.max(800, Math.min(6000, tdee));
+      tdeeData[dailySeries[i].date] = Math.round(tdee);
+    }
+    const tdeeKeys = Object.keys(tdeeData).sort().slice(-60);
+    const tdeeVals = tdeeKeys.map(k => tdeeData[k]);
+    if (tdeeVals.length >= 3) {
+      const smoothed = calcEMA(tdeeVals, 0.05);
+      tdeeKeys.forEach((k, i) => { tdeeData[k] = Math.round(smoothed[i]); });
+    }
+    lsSet(TDEE_KEY, tdeeData);
   }
 
   /* ── INIT ── */
