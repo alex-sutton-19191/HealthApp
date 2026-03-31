@@ -220,6 +220,85 @@
     refreshAll();
   }
 
+  /* ── CALORIE BANKING ── */
+  function saveBingeSettings() {
+    const existing = ls(SET_KEY, {});
+    const enabled = document.getElementById('sBingeEnabled').checked;
+    const days = [];
+    document.querySelectorAll('.binge-day-cb:checked').forEach(cb => days.push(parseInt(cb.value)));
+    if (days.length === 0 && enabled) {
+      document.getElementById('sBingeEnabled').checked = false;
+      existing.weekendBinge = { enabled: false, days: [] };
+    } else {
+      existing.weekendBinge = { enabled, days };
+    }
+    lsSet(SET_KEY, existing);
+    document.getElementById('bingeDayPicker').style.display = enabled ? 'block' : 'none';
+    updateBankedDisplay();
+    refreshAll();
+  }
+
+  function loadBingeSettings() {
+    const s = getSettings();
+    const el = document.getElementById('sBingeEnabled');
+    if (!el) return;
+    el.checked = s.weekendBinge.enabled;
+    document.getElementById('bingeDayPicker').style.display = s.weekendBinge.enabled ? 'block' : 'none';
+    document.querySelectorAll('.binge-day-cb').forEach(cb => {
+      cb.checked = s.weekendBinge.days.includes(parseInt(cb.value));
+    });
+    updateBankedDisplay();
+  }
+
+  function getBankedCalories() {
+    const s = getSettings();
+    if (!s.weekendBinge.enabled || s.weekendBinge.days.length === 0) return { banked: 0, perDay: 0, remainingDays: 0 };
+    const today = new Date(); today.setHours(0,0,0,0);
+    const data = getData();
+    const dailyGoal = Math.round(s.weekly / 7);
+    const wStart = new Date(today);
+    while (wStart.getDay() !== s.weekStartDay) wStart.setDate(wStart.getDate() - 1);
+    if (wStart > today) wStart.setDate(wStart.getDate() - 7);
+
+    let banked = 0;
+    const cur = new Date(wStart);
+    while (cur < today) {
+      const key = makeKey(cur.getFullYear(), cur.getMonth(), cur.getDate());
+      if (!s.weekendBinge.days.includes(cur.getDay())) {
+        const actual = data[key];
+        if (actual !== undefined && actual < dailyGoal) {
+          banked += (dailyGoal - actual);
+        }
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    let remainingDays = 0;
+    const weekEnd = new Date(wStart); weekEnd.setDate(weekEnd.getDate() + 7);
+    const check = new Date(today);
+    while (check < weekEnd) {
+      if (s.weekendBinge.days.includes(check.getDay())) remainingDays++;
+      check.setDate(check.getDate() + 1);
+    }
+
+    return { banked, perDay: remainingDays > 0 ? Math.round(banked / remainingDays) : 0, remainingDays };
+  }
+
+  function updateBankedDisplay() {
+    const el = document.getElementById('bankedCalDisplay');
+    if (!el) return;
+    const s = getSettings();
+    if (!s.weekendBinge.enabled) { el.style.display = 'none'; return; }
+    const { banked, perDay, remainingDays } = getBankedCalories();
+    if (banked > 0) {
+      el.style.display = 'block';
+      el.textContent = `${banked.toLocaleString()} cal banked this week` + (remainingDays > 0 ? ` (+${perDay.toLocaleString()} per binge day)` : ' (no binge days remaining)');
+    } else {
+      el.style.display = 'block';
+      el.textContent = 'No banked calories yet this week';
+    }
+  }
+
   /* ── CLAUDE API KEY ── */
   function saveApiKey() {
     const k = document.getElementById('sApiKey').value.trim();
@@ -795,10 +874,30 @@ Round all numbers to whole integers. Use your best judgment.`
   function makeKey(y, m, d) { return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
   function isMetric() { return !!getSettings().useMetric; }
   function wt(lbs) { return isMetric() ? (lbs*0.453592).toFixed(1)+' kg' : lbs+' lbs'; }
+  function getStaticTDEE() {
+    const tdeeData = ls(TDEE_KEY, {});
+    const tdeeKeys = Object.keys(tdeeData).sort();
+    if (tdeeKeys.length >= 14) return tdeeData[tdeeKeys[tdeeKeys.length - 1]];
+    const p = ls(CALC_KEY, {});
+    if (!p.age || !p.weight) return null;
+    const ft = parseFloat(p.ft)||0, inVal = parseFloat(p.inch)||0;
+    const heightCm = ((ft*12)+inVal)*2.54, weightKg = parseFloat(p.weight)*0.453592;
+    const age = parseFloat(p.age);
+    let bmr = (10*weightKg)+(6.25*heightCm)-(5*age);
+    bmr += p.sex==='male' ? 5 : -161;
+    return Math.round(bmr * (parseFloat(p.activity)||1.55));
+  }
+
   function colorFor(cal, isRefeed) {
     if (isRefeed) return 'refeed';
     const s = getSettings();
-    return cal <= s.green ? 'green' : cal > s.red ? 'red' : 'yellow';
+    const tdee = getStaticTDEE();
+    if (!tdee) {
+      return cal <= s.green ? 'green' : cal > s.red ? 'red' : 'yellow';
+    }
+    if (cal > tdee) return 'red';
+    if (cal <= s.green) return 'green';
+    return 'yellow';
   }
   function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
@@ -833,14 +932,25 @@ Round all numbers to whole integers. Use your best judgment.`
         <div class="today-big-sub">calories logged today${isRF ? ' · refeed day' : ''}</div>`;
 
       const dailyGoal = Math.round(s.weekly / 7);
-      const pct = dailyGoal > 0 ? Math.min((cal / dailyGoal) * 100, 100) : 0;
-      const isOver = cal > dailyGoal;
-      const diff = Math.abs(cal - dailyGoal);
+      let adjustedGoal = dailyGoal;
+      let bankedBonus = 0;
+      const todayDow = today.getDay();
+      if (s.weekendBinge.enabled && s.weekendBinge.days.includes(todayDow)) {
+        const banking = getBankedCalories();
+        bankedBonus = banking.perDay;
+        adjustedGoal = dailyGoal + bankedBonus;
+      }
+      const pct = adjustedGoal > 0 ? Math.min((cal / adjustedGoal) * 100, 100) : 0;
+      const isOver = cal > adjustedGoal;
+      const diff = Math.abs(cal - adjustedGoal);
       const barColor = isOver ? 'linear-gradient(90deg,#ef4444,#f87171)' : 'linear-gradient(90deg,#10b981,#34d399)';
       const remainTxt = isOver ? `<span style="color:#f87171;font-size:0.72rem">${diff.toLocaleString()} cal over daily goal</span>` : `<span style="color:#34d399;font-size:0.72rem">${diff.toLocaleString()} cal remaining</span>`;
-      html += `<div style="margin:10px 0 4px;font-size:0.72rem;color:var(--muted)">${cal.toLocaleString()} / ${dailyGoal.toLocaleString()} cal today</div>`;
+      html += `<div style="margin:10px 0 4px;font-size:0.72rem;color:var(--muted)">${cal.toLocaleString()} / ${adjustedGoal.toLocaleString()} cal today</div>`;
       html += `<div class="bar-wrap" style="margin-bottom:4px"><div class="bar-fill" style="width:${pct.toFixed(1)}%;background:${barColor}">${Math.round(pct)}%</div></div>`;
       html += `<div style="margin-bottom:6px">${remainTxt}</div>`;
+      if (bankedBonus > 0) {
+        html += `<div style="font-size:0.68rem;color:var(--yellow);margin-top:2px">Daily Goal: ${adjustedGoal.toLocaleString()} (${dailyGoal.toLocaleString()} + ${bankedBonus.toLocaleString()} banked)</div>`;
+      }
 
       if (mac) {
         const macGoals = { p: s.macroP, c: s.macroC, f: s.macroF };
@@ -1025,7 +1135,7 @@ Round all numbers to whole integers. Use your best judgment.`
     today.setHours(0, 0, 0, 0);
 
     const wStart = new Date(today);
-    wStart.setDate(today.getDate() - today.getDay());
+    while (wStart.getDay() !== s.weekStartDay) wStart.setDate(wStart.getDate() - 1);
 
     let actual = 0, daysLogged = 0, daysElapsed = 0;
     for (let i = 0; i < 7; i++) {
@@ -1095,10 +1205,12 @@ Round all numbers to whole integers. Use your best judgment.`
       grid.appendChild(el);
     }
 
+    const tdee = getStaticTDEE();
+    const tdeeLabel = tdee ? tdee.toLocaleString() : 'TDEE';
     document.getElementById('legend').innerHTML = `
-      <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> ≤ ${s.green} cal</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> ${s.green}–${s.red} cal</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> > ${s.red} cal</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> ≤ ${s.green} cal (on target)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> ${s.green}–${tdeeLabel} cal</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> > ${tdeeLabel} cal (surplus)</div>
       <div class="legend-item"><div class="legend-dot" style="background:#6c7ae0"></div> Refeed day</div>
       <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6;border-radius:50%"></div> Has note</div>`;
 
@@ -1467,6 +1579,7 @@ Round all numbers to whole integers. Use your best judgment.`
           </div>
           <div style="display:flex;gap:6px;margin-top:8px">
             <button class="btn-modal-meal-action" onclick="showModalMealForm(${i})">Edit</button>
+            <button class="btn-modal-meal-action" onclick="showCopyPopover(event, ${i})">Copy</button>
             <button class="btn-modal-meal-action btn-modal-meal-del" onclick="modalDeleteMeal(${i})">Delete</button>
           </div>
         </div>`;
@@ -1886,6 +1999,89 @@ Round all numbers to whole integers. Use your best judgment.`
     renderGoalSummary();
   }
 
+  /* ── COPY MEAL ── */
+  function showCopyPopover(event, mealIndex) {
+    closeCopyPopover();
+    const meals = ls(MEALS_KEY, {});
+    const meal = (meals[modalKey] || [])[mealIndex];
+    if (!meal) return;
+    const today = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    const todayStr = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+    const tmrw = new Date(today); tmrw.setDate(tmrw.getDate()+1);
+    const tmrwStr = `${tmrw.getFullYear()}-${pad(tmrw.getMonth()+1)}-${pad(tmrw.getDate())}`;
+    const pop = document.createElement('div');
+    pop.className = 'copy-popover';
+    pop.id = 'copyPopover';
+    pop.innerHTML = `
+      <div class="copy-pop-title">Copy "${escHtml(meal.name)}" to:</div>
+      <button class="copy-pop-btn" onclick="doCopyMeal(${mealIndex},'${todayStr}')">Today</button>
+      <button class="copy-pop-btn" onclick="doCopyMeal(${mealIndex},'${tmrwStr}')">Tomorrow</button>
+      <div style="margin-top:6px"><input type="date" class="copy-pop-date" onchange="doCopyMeal(${mealIndex},this.value)"></div>
+      <button class="copy-pop-cancel" onclick="closeCopyPopover()">Cancel</button>
+    `;
+    event.target.closest('.modal-meal-item').appendChild(pop);
+  }
+
+  function closeCopyPopover() {
+    const el = document.getElementById('copyPopover');
+    if (el) el.remove();
+  }
+
+  function doCopyMeal(mealIndex, targetDate) {
+    if (!targetDate) return;
+    const meals = ls(MEALS_KEY, {});
+    const meal = (meals[modalKey] || [])[mealIndex];
+    if (!meal) return;
+    _addMeal(targetDate, meal.name, meal.cal, meal.p||0, meal.c||0, meal.f||0);
+    closeCopyPopover();
+    refreshAll();
+    showToast(`Copied ${escHtml(meal.name)} to ${targetDate}`);
+  }
+
+  /* ── FEATURE TOGGLES ── */
+  const FEATURE_LABELS = {
+    tdeeTrend: 'TDEE Trend', weeklyBudget: 'Weekly Calorie Budget', macroRings: 'Macro Rings',
+    streakGrid: 'Streak & Consistency', energyBalance: 'Energy Balance', goalWaterfall: 'Goal Waterfall',
+    smoothedWeight: 'Smoothed Weight Trend', copyMeal: 'Quick Copy Meal', coachCountdown: 'Coach Countdown'
+  };
+
+  function renderFeatureToggles() {
+    const s = getSettings();
+    const el = document.getElementById('featureToggles');
+    if (!el) return;
+    el.innerHTML = Object.entries(FEATURE_LABELS).map(([key, label]) => {
+      const checked = s.features[key] !== false ? 'checked' : '';
+      return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:0.82rem;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05)">
+        <input type="checkbox" ${checked} onchange="saveFeatureToggle('${key}',this.checked)" style="width:auto;accent-color:var(--cyan)"> ${label}
+      </label>`;
+    }).join('');
+  }
+
+  function saveFeatureToggle(key, enabled) {
+    const existing = ls(SET_KEY, {});
+    if (!existing.features) existing.features = {};
+    existing.features[key] = enabled;
+    lsSet(SET_KEY, existing);
+    refreshAll();
+  }
+
+  function saveWeekCoachSettings() {
+    const existing = ls(SET_KEY, {});
+    existing.weekStartDay = parseInt(document.getElementById('sWeekStart').value);
+    existing.coachDay = parseInt(document.getElementById('sCoachDay').value);
+    lsSet(SET_KEY, existing);
+    refreshAll();
+  }
+
+  function loadWeekCoachSettings() {
+    const s = getSettings();
+    const ws = document.getElementById('sWeekStart');
+    const cd = document.getElementById('sCoachDay');
+    if (ws) ws.value = s.weekStartDay;
+    if (cd) cd.value = s.coachDay;
+  }
+
   function init() {
     const t   = new Date();
     const pad = n => String(n).padStart(2,'0');
@@ -1916,6 +2112,9 @@ Round all numbers to whole integers. Use your best judgment.`
 
     loadCalcProfile();
     loadApiKey();
+    loadBingeSettings();
+    renderFeatureToggles();
+    loadWeekCoachSettings();
     runCalc();
     refreshAll();
   }

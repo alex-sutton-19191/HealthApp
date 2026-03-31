@@ -387,6 +387,49 @@
       </div>
     </div>
 
+    <div class="card" id="weekendBingeCard">
+      <div class="card-title">Calorie Banking</div>
+      <div style="font-size:0.75rem;color:var(--muted);margin:-4px 0 14px;line-height:1.6">Bank unspent weekday calories for your weekend. Only calories below your daily goal get banked.</div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;margin-bottom:12px">
+        <input type="checkbox" id="sBingeEnabled" onchange="saveBingeSettings()" style="width:auto;accent-color:var(--cyan)"> Enable Calorie Banking
+      </label>
+      <div id="bingeDayPicker" style="display:none">
+        <div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Add banked calories to:</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" class="binge-day-cb" value="5" onchange="saveBingeSettings()" style="width:auto;accent-color:var(--yellow)"> Friday</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" class="binge-day-cb" value="6" onchange="saveBingeSettings()" style="width:auto;accent-color:var(--yellow)"> Saturday</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" class="binge-day-cb" value="0" onchange="saveBingeSettings()" style="width:auto;accent-color:var(--yellow)"> Sunday</label>
+        </div>
+        <div id="bankedCalDisplay" style="margin-top:12px;padding:10px;border:2px solid rgba(251,191,36,0.2);background:rgba(251,191,36,0.04);font-size:0.82rem;color:var(--yellow);display:none"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Dashboard Features</div>
+      <div style="font-size:0.75rem;color:var(--muted);margin:-4px 0 14px;line-height:1.6">Toggle dashboard cards on or off.</div>
+      <div class="feature-toggles" id="featureToggles"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Week & Coach</div>
+      <div class="settings-grid">
+        <div class="setting-item">
+          <label>Week Starts On</label>
+          <select id="sWeekStart" onchange="saveWeekCoachSettings()">
+            <option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option>
+            <option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
+          </select>
+        </div>
+        <div class="setting-item">
+          <label>Coach Check-in Day</label>
+          <select id="sCoachDay" onchange="saveWeekCoachSettings()">
+            <option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option>
+            <option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-title">AI Meal Scanner</div>
       <div style="margin-bottom:8px">
