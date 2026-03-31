@@ -699,6 +699,32 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
   margin-top: 8px; text-align: center;
 }
 
+/* ── INFO BUTTONS ── */
+.info-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--muted2);
+  background: transparent; color: var(--muted); font-size: 0.65rem; font-weight: 700;
+  cursor: pointer; padding: 0; margin-left: auto; flex-shrink: 0;
+  font-family: 'Outfit', sans-serif; line-height: 1; transition: all 0.15s;
+}
+.info-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+.info-tooltip {
+  position: fixed; z-index: 9999; max-width: 320px; padding: 14px 16px;
+  background: var(--card-bg); border: 2px solid var(--cyan); border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4); font-size: 0.82rem; line-height: 1.6;
+  color: var(--text); animation: tooltipIn 0.15s ease-out;
+}
+.info-tooltip .info-tooltip-title {
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px;
+  color: var(--cyan); margin-bottom: 6px;
+}
+.info-tooltip .info-tooltip-close {
+  position: absolute; top: 6px; right: 10px; background: none; border: none;
+  color: var(--muted); font-size: 1.1rem; cursor: pointer; padding: 2px;
+}
+.info-tooltip .info-tooltip-close:hover { color: var(--text); }
+@keyframes tooltipIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
 /* ── CARD TITLE GLOW ON HOVER ── */
 .card:hover .card-title { color: var(--cyan); text-shadow: 0 0 8px rgba(0,255,255,0.2); }
 

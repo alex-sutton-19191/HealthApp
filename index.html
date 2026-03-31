@@ -70,7 +70,7 @@
     </div>
 
     <div class="card" id="weeklyBudgetCard">
-      <div class="card-title">Weekly Budget</div>
+      <div class="card-title">Weekly Budget <button class="info-btn" onclick="showInfo(this,'Weekly Calorie Budget','See your total calorie budget for the week as a visual bar. If Calorie Banking is enabled, banked calories from under-eating on weekdays are shown as bonus budget on your chosen days.')">i</button></div>
       <div id="weeklyBudgetContent"></div>
     </div>
 
@@ -147,7 +147,7 @@
     </div>
 
     <div class="card" id="streakGridCard">
-      <div class="card-title">Logging Streak</div>
+      <div class="card-title">Logging Streak <button class="info-btn" onclick="showInfo(this,'Logging Streak','A heatmap of your last 91 days. Green squares mean you logged food that day. Your current streak count shows how many consecutive days you\'ve logged — keep it going!')">i</button></div>
       <div id="streakCount" style="font-size:2rem;font-weight:700;color:var(--green);text-align:center;margin-bottom:8px"></div>
       <div id="streakLabel" style="font-size:0.72rem;color:var(--muted);text-align:center;margin-bottom:14px;text-transform:uppercase;letter-spacing:1px"></div>
       <div id="streakGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;max-width:320px;margin:0 auto"></div>
@@ -167,7 +167,7 @@
     </div>
 
     <div class="card">
-      <div class="card-title">Weight Trend</div>
+      <div class="card-title">Weight Trend <button class="info-btn" onclick="showInfo(this,'Smoothed Weight Trend','The dots are your actual weigh-ins. The smooth line is an exponential moving average (EMA) that filters out daily fluctuations from water retention, sodium, etc. Focus on the trend line — that\'s your real progress.')">i</button></div>
       <div class="chart-area">
         <div class="chart-empty" id="weightEmpty">Log at least 2 weight entries to see your trend.</div>
         <svg id="weightSvg" viewBox="0 0 800 160" style="display:none"></svg>
@@ -175,12 +175,12 @@
     </div>
 
     <div class="card" id="tdeeTrendCard" style="display:none">
-      <div class="card-title">Adaptive TDEE</div>
+      <div class="card-title">Adaptive TDEE <button class="info-btn" onclick="showInfo(this,'Adaptive TDEE','Your Total Daily Energy Expenditure, calculated from your actual weight changes and calorie intake over time. More accurate than static calculators because it adapts to YOUR body. Needs 14+ days of calorie data and 5+ weight entries to activate.')">i</button></div>
       <div id="tdeeTrendContent"></div>
     </div>
 
     <div class="card" id="energyBalanceCard" style="display:none">
-      <div class="card-title">Energy Balance — Last 60 Days</div>
+      <div class="card-title">Energy Balance <button class="info-btn" onclick="showInfo(this,'Energy Balance','Compares your daily calorie intake (cyan line) vs. your adaptive TDEE (purple line) over 60 days. Green shading = deficit (losing weight), red shading = surplus (gaining weight). Great for seeing trends at a glance.')">i</button></div>
       <div class="chart-area">
         <svg id="energySvg" viewBox="0 0 800 180"></svg>
       </div>
@@ -193,7 +193,7 @@
     </div>
 
     <div class="card" id="goalWaterfallCard" style="display:none">
-      <div class="card-title">Goal Progress</div>
+      <div class="card-title">Goal Progress <button class="info-btn" onclick="showInfo(this,'Goal Progress Waterfall','Shows daily weight changes relative to your goal. Green bars = weight moved toward your goal, red bars = weight moved away. Uses smoothed weight data to filter out daily fluctuations from water, salt, etc.')">i</button></div>
       <div class="chart-area">
         <svg id="waterfallSvg" viewBox="0 0 800 160"></svg>
       </div>
@@ -440,7 +440,7 @@
     </div>
 
     <div class="card" id="weekendBingeCard">
-      <div class="card-title">Calorie Banking</div>
+      <div class="card-title">Calorie Banking <button class="info-btn" onclick="showInfo(this,'Calorie Banking','Automatically saves calories you didn\'t eat on weekdays and adds them to your budget on chosen days (like Friday/Saturday). Great if you want to eat more on weekends while staying on track for the week.')">i</button></div>
       <div style="font-size:0.75rem;color:var(--muted);margin:-4px 0 14px;line-height:1.6">Bank unspent weekday calories for your weekend. Only calories below your daily goal get banked.</div>
       <label style="display:flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;margin-bottom:12px">
         <input type="checkbox" id="sBingeEnabled" onchange="saveBingeSettings()" style="width:auto;accent-color:var(--cyan)"> Enable Calorie Banking
@@ -457,13 +457,13 @@
     </div>
 
     <div class="card">
-      <div class="card-title">Dashboard Features</div>
+      <div class="card-title">Dashboard Features <button class="info-btn" onclick="showInfo(this,'Dashboard Features','Show or hide individual cards on your dashboard. Turn off features you don\'t use to keep your view clean.')">i</button></div>
       <div style="font-size:0.75rem;color:var(--muted);margin:-4px 0 14px;line-height:1.6">Toggle dashboard cards on or off.</div>
       <div class="feature-toggles" id="featureToggles"></div>
     </div>
 
     <div class="card">
-      <div class="card-title">Week & Coach</div>
+      <div class="card-title">Week & Coach <button class="info-btn" onclick="showInfo(this,'Week & Coach Settings','Set which day your tracking week starts on (affects weekly budget and calorie banking). The AI Coach will check in with you on your chosen day each week with personalized advice based on your data.')">i</button></div>
       <div class="settings-grid">
         <div class="setting-item">
           <label>Week Starts On</label>
@@ -614,11 +614,11 @@
 
 <!-- ── SHAME POPUP ── -->
 <div id="shameOverlay" onclick="closeShame()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:5000;align-items:center;justify-content:center;">
-  <div id="shameBox" style="background:#0a0000;border:3px solid var(--red);box-shadow:0 0 40px rgba(255,51,51,0.6),6px 6px 0 rgba(255,51,51,0.4);padding:28px 24px;max-width:380px;width:90%;text-align:center;animation:shameEntrance 0.2s steps(4) forwards;">
-    <div style="font-size:2.5rem;margin-bottom:12px" id="shameEmoji"></div>
-    <div id="shameTitle" style="font-size:0.8rem;color:var(--red);text-shadow:2px 2px 0 #660000,0 0 20px rgba(255,51,51,0.8);margin-bottom:16px;letter-spacing:2px;line-height:1.6"></div>
-    <div id="shameBody" style="font-size:0.5rem;color:#ffaaaa;line-height:2.4;margin-bottom:20px"></div>
-    <div style="font-size:0.4rem;color:rgba(255,100,100,0.5);letter-spacing:2px">[ CLICK ANYWHERE TO HIDE IN SHAME ]</div>
+  <div id="shameBox" style="background:#0a0000;border:3px solid var(--red);box-shadow:0 0 40px rgba(255,51,51,0.6),6px 6px 0 rgba(255,51,51,0.4);padding:32px 28px;max-width:420px;width:90%;text-align:center;animation:shameEntrance 0.2s steps(4) forwards;">
+    <div style="font-size:3.5rem;margin-bottom:16px" id="shameEmoji"></div>
+    <div id="shameTitle" style="font-size:1.3rem;color:var(--red);text-shadow:2px 2px 0 #660000,0 0 20px rgba(255,51,51,0.8);margin-bottom:16px;letter-spacing:3px;line-height:1.4;font-weight:700"></div>
+    <div id="shameBody" style="font-size:1rem;color:#ffaaaa;line-height:1.8;margin-bottom:24px"></div>
+    <div style="font-size:0.72rem;color:rgba(255,100,100,0.5);letter-spacing:2px">[ CLICK ANYWHERE TO HIDE IN SHAME ]</div>
   </div>
 </div>
 

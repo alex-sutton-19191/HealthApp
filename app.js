@@ -932,6 +932,39 @@ Round all numbers to whole integers. Use your best judgment.`
     document.getElementById('shameOverlay').style.display = 'none';
   }
 
+  /* ── INFO TOOLTIPS ── */
+  let _activeTooltip = null;
+  function showInfo(btn, title, text) {
+    dismissInfo();
+    const tip = document.createElement('div');
+    tip.className = 'info-tooltip';
+    tip.innerHTML = `<button class="info-tooltip-close" onclick="dismissInfo()">&times;</button><div class="info-tooltip-title">${title}</div>${text}`;
+    document.body.appendChild(tip);
+    // Position near button
+    const r = btn.getBoundingClientRect();
+    let top = r.bottom + 8, left = r.left;
+    // Keep within viewport
+    if (left + 320 > window.innerWidth) left = window.innerWidth - 330;
+    if (left < 10) left = 10;
+    if (top + 200 > window.innerHeight) top = r.top - tip.offsetHeight - 8;
+    tip.style.top = top + 'px';
+    tip.style.left = left + 'px';
+    _activeTooltip = tip;
+    // Dismiss on outside click (delayed to avoid immediate dismiss)
+    setTimeout(() => {
+      document.addEventListener('click', _infoDismissHandler, { once: true });
+    }, 50);
+  }
+  function _infoDismissHandler(e) {
+    if (_activeTooltip && !_activeTooltip.contains(e.target)) dismissInfo();
+    else if (_activeTooltip) document.addEventListener('click', _infoDismissHandler, { once: true });
+  }
+  function dismissInfo() {
+    if (_activeTooltip) { _activeTooltip.remove(); _activeTooltip = null; }
+  }
+  window.showInfo = showInfo;
+  window.dismissInfo = dismissInfo;
+
   /* ── SUCCESS FEEDBACK ── */
   function showToast(msg, type) {
     let toast = document.getElementById('appToast');
