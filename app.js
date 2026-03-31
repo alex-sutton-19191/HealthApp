@@ -118,46 +118,60 @@
     if (error) showAuthError(error.message);
   }
 
-  function _loadDemoData() {
+  function _generateDemoData() {
+    // Reset all cache to empty
+    _cache = { ct_data:{}, ct_macros:{}, ct_notes:{}, ct_refeed:{}, ct_weights:{}, ct_presets:[], ct_settings:{}, ct_calc:{}, ct_photos:{}, ct_meals:{}, ct_tdee:{}, ct_coach:[] };
+
     const today = new Date(); today.setHours(0,0,0,0);
     const pad = n => String(n).padStart(2,'0');
     const mk = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-    // Generate 30 days of calorie + meal data
-    for (let i = 29; i >= 0; i--) {
+    const mealNames = [
+      ['Oatmeal & Berries','Greek Yogurt Bowl','Eggs & Toast','Protein Pancakes','Smoothie Bowl'],
+      ['Chicken Wrap','Turkey Sandwich','Salmon Bowl','Stir Fry','Burrito Bowl'],
+      ['Grilled Chicken','Pasta & Meatballs','Steak & Veggies','Fish Tacos','Rice & Beans']
+    ];
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+    // Generate 60 days of calorie + meal data
+    for (let i = 59; i >= 0; i--) {
       const d = new Date(today); d.setDate(today.getDate() - i);
       const key = mk(d);
       const base = 1700 + Math.round(Math.random() * 600);
       const p = 120 + Math.round(Math.random() * 60);
       const c = 180 + Math.round(Math.random() * 80);
       const f = 50 + Math.round(Math.random() * 30);
-      // Skip a couple days to test missed day recovery
+      // Skip a couple recent days to test missed day recovery
       if (i === 2 || i === 4) continue;
+      // Skip ~10% of older days randomly for realism
+      if (i > 7 && Math.random() < 0.1) continue;
       _cache.ct_meals[key] = [
-        { name: 'Breakfast', cal: Math.round(base*0.3), p: Math.round(p*0.3), c: Math.round(c*0.35), f: Math.round(f*0.3), ts: Date.now()-i*86400000 },
-        { name: 'Lunch', cal: Math.round(base*0.35), p: Math.round(p*0.35), c: Math.round(c*0.3), f: Math.round(f*0.35), ts: Date.now()-i*86400000+3600000 },
-        { name: 'Dinner', cal: Math.round(base*0.35), p: Math.round(p*0.35), c: Math.round(c*0.35), f: Math.round(f*0.35), ts: Date.now()-i*86400000+7200000 }
+        { name: pick(mealNames[0]), cal: Math.round(base*0.3), p: Math.round(p*0.3), c: Math.round(c*0.35), f: Math.round(f*0.3), ts: Date.now()-i*86400000 },
+        { name: pick(mealNames[1]), cal: Math.round(base*0.35), p: Math.round(p*0.35), c: Math.round(c*0.3), f: Math.round(f*0.35), ts: Date.now()-i*86400000+3600000 },
+        { name: pick(mealNames[2]), cal: Math.round(base*0.35), p: Math.round(p*0.35), c: Math.round(c*0.35), f: Math.round(f*0.35), ts: Date.now()-i*86400000+7200000 }
       ];
       const meals = _cache.ct_meals[key];
       _cache.ct_data[key] = meals.reduce((s,m) => s+m.cal, 0);
       _cache.ct_macros[key] = { p: meals.reduce((s,m) => s+m.p, 0), c: meals.reduce((s,m) => s+m.c, 0), f: meals.reduce((s,m) => s+m.f, 0) };
+      // Occasional notes
+      if (Math.random() < 0.15) _cache.ct_notes[key] = pick(['Felt great today','Hungry all day','Had a cheat snack','Good energy','Skipped a snack']);
     }
-    // Generate 20 weight entries
-    let wt = 195;
-    for (let i = 29; i >= 0; i -= 1) {
-      if (Math.random() > 0.35) continue; // ~65% of days have weight
+    // Generate weight entries (~40% of days over 60 days)
+    let wt = 198;
+    for (let i = 59; i >= 0; i--) {
+      if (Math.random() > 0.4) continue;
       const d = new Date(today); d.setDate(today.getDate() - i);
-      wt += (Math.random() - 0.55) * 0.8; // slight downward trend
+      wt += (Math.random() - 0.55) * 0.6; // slight downward trend
       _cache.ct_weights[mk(d)] = parseFloat(wt.toFixed(1));
     }
-    // Ensure enough weight entries for TDEE
-    for (let i of [0, 3, 7, 14, 21, 28]) {
+    // Ensure enough weight entries for TDEE (need 5+ in last 28 days)
+    for (let i of [0, 2, 5, 8, 12, 17, 21, 28, 35, 42, 50]) {
       const d = new Date(today); d.setDate(today.getDate() - i);
       if (!_cache.ct_weights[mk(d)]) {
-        wt += (Math.random() - 0.55) * 0.5;
+        wt += (Math.random() - 0.55) * 0.4;
         _cache.ct_weights[mk(d)] = parseFloat(wt.toFixed(1));
       }
     }
-    // Settings with goal
+    // Settings
     _cache.ct_settings = { weekly: 14000, green: 2000, red: 2400, macroP: 150, macroC: 200, macroF: 65, useMetric: false,
       weekStartDay: 1, coachDay: today.getDay(),
       weekendBinge: { enabled: true, days: [5, 6] },
@@ -168,12 +182,24 @@
     // Presets
     _cache.ct_presets = [
       { name: 'Protein Shake', cal: 280, p: 40, c: 15, f: 8 },
-      { name: 'Chicken & Rice', cal: 520, p: 45, c: 55, f: 12 }
+      { name: 'Chicken & Rice', cal: 520, p: 45, c: 55, f: 12 },
+      { name: 'Greek Yogurt', cal: 150, p: 20, c: 12, f: 3 }
     ];
+  }
+
+  function _loadDemoData() {
+    _generateDemoData();
     _currentUser = { id: 'demo' };
     showAuthOverlay(false);
     _initialized = true;
     init();
+  }
+
+  function resetDemoData() {
+    _generateDemoData();
+    _initialized = false;
+    init();
+    showToast('Demo data reset');
   }
 
   async function authSignUp() {
@@ -2848,6 +2874,9 @@ Round all numbers to whole integers. Use your best judgment.`
     loadWeekCoachSettings();
     runCalc();
     refreshAll();
+    // Show demo reset button if in demo mode
+    const demoCard = document.getElementById('demoResetCard');
+    if (demoCard) demoCard.style.display = (_currentUser && _currentUser.id === 'demo') ? '' : 'none';
     setTimeout(checkCoachCheckin, 2000);
     setTimeout(checkMissedDays, 3000);
   }
