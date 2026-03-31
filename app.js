@@ -1441,7 +1441,7 @@ Round all numbers to whole integers. Use your best judgment.`
     const goalY=yS(dailyGoal);
     html+=`<line x1="${P.l}" y1="${goalY.toFixed(1)}" x2="${W-P.r}" y2="${goalY.toFixed(1)}" stroke="rgba(0,212,255,0.33)" stroke-width="1.5" stroke-dasharray="5,3"/>`;
     html+=`<text x="${W-P.r-2}" y="${(goalY-4).toFixed(1)}" text-anchor="end" fill="rgba(0,212,255,0.48)" font-size="10">Daily goal</text>`;
-    days.forEach((day,i)=>{ const x=P.l+i*(pw/30); if (day.cal!==undefined) { const color=day.refeed?'rgba(108,122,224,0.7)':day.cal<=s.green?'rgba(16,185,129,0.72)':day.cal>s.red?'rgba(239,68,68,0.72)':'rgba(245,158,11,0.72)'; const barH=Math.max(2,(day.cal/maxCal)*ph); const d=day.date; html+=`<rect x="${(x+1).toFixed(1)}" y="${(P.t+ph-barH).toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" fill="${color}" rx="2"><title>${d.getMonth()+1}/${d.getDate()}: ${day.cal.toLocaleString()} cal</title></rect>`; } });
+    days.forEach((day,i)=>{ const x=P.l+i*(pw/30); if (day.cal!==undefined) { const cc=colorFor(day.cal, day.refeed); const color=cc==='refeed'?'rgba(108,122,224,0.7)':cc==='green'?'rgba(16,185,129,0.72)':cc==='red'?'rgba(239,68,68,0.72)':'rgba(245,158,11,0.72)'; const barH=Math.max(2,(day.cal/maxCal)*ph); const d=day.date; html+=`<rect x="${(x+1).toFixed(1)}" y="${(P.t+ph-barH).toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" fill="${color}" rx="2"><title>${d.getMonth()+1}/${d.getDate()}: ${day.cal.toLocaleString()} cal</title></rect>`; } });
     const avgPts=[];
     for (let i=0;i<30;i++) { const slice=days.slice(Math.max(0,i-6),i+1).filter(d=>d.cal!==undefined); if (slice.length>=3) { const avg=slice.reduce((acc,d)=>acc+d.cal,0)/slice.length; const x=P.l+i*(pw/30)+barW/2; avgPts.push(`${x.toFixed(1)},${yS(avg).toFixed(1)}`); } }
     if (avgPts.length>1) { html+=`<polyline points="${avgPts.join(' ')}" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.5"/><text x="${W-P.r-2}" y="${H-4}" text-anchor="end" fill="rgba(255,255,255,0.3)" font-size="10">7-day avg</text>`; }
@@ -1582,11 +1582,14 @@ Round all numbers to whole integers. Use your best judgment.`
     // Day summary
     const summaryEl = document.getElementById('modalDaySummary');
     if (totalCal > 0) {
+      const refeedData = ls(REFEED_KEY, {});
+      const dayColor = colorFor(totalCal, !!refeedData[modalKey]);
+      const colorHex = { green: 'var(--green)', yellow: 'var(--yellow)', red: 'var(--red)', refeed: '#a5b4fc' }[dayColor] || 'var(--green)';
       const macStr = (mac.p||mac.c||mac.f)
         ? `<div style="font-size:0.78rem;color:var(--muted);margin-top:2px">P ${mac.p||0}g · C ${mac.c||0}g · F ${mac.f||0}g</div>`
         : '';
       summaryEl.innerHTML = `<div style="text-align:center;padding:8px 0 12px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:12px">
-        <div style="font-size:1.6rem;font-weight:700;color:var(--green)">${totalCal.toLocaleString()} <span style="font-size:0.75rem;font-weight:500;color:var(--muted)">cal total</span></div>
+        <div style="font-size:1.6rem;font-weight:700;color:${colorHex}">${totalCal.toLocaleString()} <span style="font-size:0.75rem;font-weight:500;color:var(--muted)">cal total</span></div>
         ${macStr}
       </div>`;
     } else {
@@ -2076,7 +2079,7 @@ Round all numbers to whole integers. Use your best judgment.`
     card.style.display = '';
     const data = getData();
     const today = new Date(); today.setHours(0,0,0,0);
-    const startDay = s.weekStartDay !== undefined ? s.weekStartDay : 0;
+    const startDay = s.weekStartDay !== undefined ? s.weekStartDay : 1;
     const wStart = new Date(today);
     while (wStart.getDay() !== startDay) wStart.setDate(wStart.getDate() - 1);
 
