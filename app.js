@@ -14,7 +14,7 @@
   let _cache = {
     ct_data: {}, ct_macros: {}, ct_notes: {}, ct_refeed: {},
     ct_weights: {}, ct_presets: [], ct_settings: {}, ct_calc: {},
-    ct_photos: {}, ct_meals: {}
+    ct_photos: {}, ct_meals: {}, ct_tdee: {}, ct_coach: []
   };
   let _currentUser = null;
   let _syncTimer   = null;
@@ -28,7 +28,7 @@
       .single();
     if (error && error.code !== 'PGRST116') { console.error('Load error:', error); return; }
     if (data) {
-      const keys = ['ct_data','ct_macros','ct_notes','ct_refeed','ct_weights','ct_presets','ct_settings','ct_calc','ct_photos','ct_meals'];
+      const keys = ['ct_data','ct_macros','ct_notes','ct_refeed','ct_weights','ct_presets','ct_settings','ct_calc','ct_photos','ct_meals','ct_tdee','ct_coach'];
       keys.forEach(k => { if (data[k] !== undefined) _cache[k] = data[k]; });
     }
     await _migrateLocalStorage();
@@ -39,7 +39,7 @@
                  || Object.keys(_cache.ct_weights).length > 0
                  || (_cache.ct_presets && _cache.ct_presets.length > 0);
     if (hasData) return;
-    const keys = ['ct_data','ct_macros','ct_notes','ct_refeed','ct_weights','ct_presets','ct_settings','ct_calc','ct_photos','ct_meals'];
+    const keys = ['ct_data','ct_macros','ct_notes','ct_refeed','ct_weights','ct_presets','ct_settings','ct_calc','ct_photos','ct_meals','ct_tdee','ct_coach'];
     let foundAny = false;
     keys.forEach(k => {
       try { const v = JSON.parse(localStorage.getItem(k)); if (v !== null) { _cache[k] = v; foundAny = true; } } catch {}
@@ -72,6 +72,8 @@
   const CALC_KEY    = 'ct_calc';
   const MACROS_KEY  = 'ct_macros';
   const MEALS_KEY   = 'ct_meals';
+  const TDEE_KEY  = 'ct_tdee';
+  const COACH_KEY = 'ct_coach';
 
   let viewYear  = new Date().getFullYear();
   let viewMonth = new Date().getMonth();
@@ -138,7 +140,7 @@
   async function authLogout() {
     await _flushToSupabase();
     await _sb.auth.signOut();
-    _cache = { ct_data:{}, ct_macros:{}, ct_notes:{}, ct_refeed:{}, ct_weights:{}, ct_presets:[], ct_settings:{}, ct_calc:{}, ct_photos:{}, ct_meals:{} };
+    _cache = { ct_data:{}, ct_macros:{}, ct_notes:{}, ct_refeed:{}, ct_weights:{}, ct_presets:[], ct_settings:{}, ct_calc:{}, ct_photos:{}, ct_meals:{}, ct_tdee:{}, ct_coach:[] };
     _currentUser = null;
     _initialized = false;  // Reset so init() re-runs on next login
     showAuthOverlay(true);
@@ -184,18 +186,28 @@
   function getData()   { return ls(DATA_KEY, {}); }
   function saveData(d) { lsSet(DATA_KEY, d); }
   function getSettings() {
-    const raw = Object.assign({ weekly: 14000, macroP: 150, macroC: 200, macroF: 65, useMetric: false }, ls(SET_KEY, {}));
+    const raw = Object.assign({
+      weekly: 14000, macroP: 150, macroC: 200, macroF: 65, useMetric: false,
+      weekStartDay: 1, coachDay: 1,
+      weekendBinge: { enabled: false, days: [] },
+      features: { tdeeTrend:true, weeklyBudget:true, macroRings:true, streakGrid:true,
+                  energyBalance:true, goalWaterfall:true, smoothedWeight:true, copyMeal:true, coachCountdown:true }
+    }, ls(SET_KEY, {}));
     const daily = Math.round(raw.weekly / 7);
-    // Auto-correct green/red if missing or unreasonably low relative to daily target
-    // (catches old broken defaults like green=200 on a 2000 cal/day goal)
     if (!raw.green || raw.green < daily * 0.5) raw.green = daily;
     if (!raw.red   || raw.red   < daily * 0.6) raw.red   = Math.round(daily * 1.2);
+    if (!raw.features) raw.features = {};
+    const defFeatures = { tdeeTrend:true, weeklyBudget:true, macroRings:true, streakGrid:true,
+                          energyBalance:true, goalWaterfall:true, smoothedWeight:true, copyMeal:true, coachCountdown:true };
+    raw.features = Object.assign({}, defFeatures, raw.features);
+    if (!raw.weekendBinge) raw.weekendBinge = { enabled: false, days: [] };
     return raw;
   }
   function saveSettings() {
+    const existing = ls(SET_KEY, {});
     const weekly = parseInt(document.getElementById('sWeekly').value) || 14000;
     const daily  = Math.round(weekly / 7);
-    lsSet(SET_KEY, {
+    Object.assign(existing, {
       weekly,
       green:     parseInt(document.getElementById('sGreen').value)  || daily,
       red:       parseInt(document.getElementById('sRed').value)    || Math.round(daily * 1.2),
@@ -204,6 +216,7 @@
       macroF:    parseInt(document.getElementById('sMacroF').value) || 65,
       useMetric: document.getElementById('sMetric').checked,
     });
+    lsSet(SET_KEY, existing);
     refreshAll();
   }
 
@@ -897,12 +910,14 @@ Round all numbers to whole integers. Use your best judgment.`
 
   /* ── SHARED LOG HELPER ── */
   /* ── PER-MEAL LOGGING ── */
-  function _addMeal(dateKey, name, cal, p, c, f) {
+  function _addMeal(dateKey, name, cal, p, c, f, opts) {
     if (!dateKey || !cal) return false;
     cal = parseInt(cal, 10); p = p||0; c = c||0; f = f||0;
     const meals = ls(MEALS_KEY, {});
     if (!meals[dateKey]) meals[dateKey] = [];
-    meals[dateKey].push({ name: name||'Meal', cal, p, c, f, ts: Date.now() });
+    const meal = { name: name||'Meal', cal, p, c, f, ts: Date.now() };
+    if (opts && opts.estimated) meal.estimated = true;
+    meals[dateKey].push(meal);
     lsSet(MEALS_KEY, meals);
     _recalcDay(dateKey);
     return true;
