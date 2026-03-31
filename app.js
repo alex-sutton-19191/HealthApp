@@ -1201,6 +1201,7 @@ Round all numbers to whole integers. Use your best judgment.`
     const data   = getData();
     const notes  = ls(NOTES_KEY, {});
     const refeed = ls(REFEED_KEY, {});
+    const meals  = ls(MEALS_KEY, {});
     const today  = new Date();
     const s      = getSettings();
 
@@ -1219,12 +1220,14 @@ Round all numbers to whole integers. Use your best judgment.`
       const isToday  = today.getFullYear()===viewYear && today.getMonth()===viewMonth && today.getDate()===d;
       const hasNote  = !!notes[key];
       const isRefeed = !!refeed[key];
+      const isEstimated = (meals[key] || []).some(m => m.estimated);
 
       const isPast = new Date(viewYear, viewMonth, d) < today && !isToday;
       const el = document.createElement('div');
       el.className = 'cal-cell' + (isToday ? ' today' : '');
       if (cal !== undefined) el.classList.add(colorFor(cal, isRefeed));
       else if (isPast) el.classList.add('nodata');
+      if (isEstimated) el.classList.add('estimated');
 
       const calStr = cal !== undefined ? (cal >= 1000 ? (cal/1000).toFixed(1)+'k' : cal) : '';
       el.innerHTML = `<span class="cell-num">${d}</span>` +
@@ -2518,6 +2521,101 @@ Round all numbers to whole integers. Use your best judgment.`
   function closeCoachModal() { document.getElementById('coachOverlay').style.display = 'none'; }
   function coachOverlayClick(e) { if (e.target.id === 'coachOverlay') closeCoachModal(); }
 
+  /* ── MISSED DAY RECOVERY ── */
+  function checkMissedDays() {
+    const data = getData();
+    const today = new Date(); today.setHours(0,0,0,0);
+    const missed = [];
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date(today); d.setDate(today.getDate() - i);
+      const key = makeKey(d.getFullYear(), d.getMonth(), d.getDate());
+      if (data[key] === undefined) {
+        const dismissed = JSON.parse(sessionStorage.getItem('blubr_dismissed_days') || '[]');
+        if (!dismissed.includes(key)) missed.push({ date: d, key });
+      }
+    }
+    if (missed.length > 0) showRecoveryModal(missed);
+  }
+
+  function showRecoveryModal(missed) {
+    document.getElementById('recoveryOverlay').style.display = 'flex';
+    const container = document.getElementById('recoveryDays');
+    container.innerHTML = missed.map(m => {
+      const label = `${DAYS_LONG[m.date.getDay()]}, ${MONTHS[m.date.getMonth()]} ${m.date.getDate()}`;
+      return `<div class="recovery-day" id="rd-${m.key}" style="border:2px solid rgba(255,255,255,0.08);padding:12px;margin-bottom:8px">
+        <div style="font-weight:600;font-size:0.88rem;margin-bottom:8px">${label}</div>
+        <div class="recovery-actions" id="ra-${m.key}">
+          <button class="btn-modal-meal-action" onclick="recoveryDescribe('${m.key}')">Describe</button>
+          <button class="btn-modal-meal-action" onclick="recoveryEstimate('${m.key}','under')">Under ate</button>
+          <button class="btn-modal-meal-action" onclick="recoveryEstimate('${m.key}','track')">On track</button>
+          <button class="btn-modal-meal-action" onclick="recoveryEstimate('${m.key}','over')">Over ate</button>
+          <button class="btn-modal-meal-action btn-modal-meal-del" onclick="recoverySkip('${m.key}')">Skip</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function recoveryDescribe(dateKey) {
+    const actions = document.getElementById('ra-' + dateKey);
+    actions.innerHTML = `<textarea id="rdesc-${dateKey}" placeholder="What did you eat? (e.g., pizza for dinner, skipped lunch)" rows="2" style="width:100%;padding:8px;font-size:0.88rem;font-family:'Outfit',sans-serif;resize:none;background:var(--input);border:2px solid rgba(255,255,255,0.15);color:var(--text);margin-bottom:6px"></textarea>
+      <button class="btn-modal-meal-action" onclick="recoveryAIEstimate('${dateKey}')">Estimate with AI</button>
+      <button class="btn-modal-meal-action btn-modal-meal-del" onclick="recoverySkip('${dateKey}')">Cancel</button>`;
+  }
+
+  async function recoveryAIEstimate(dateKey) {
+    const desc = document.getElementById('rdesc-' + dateKey).value.trim();
+    if (!desc) return;
+    const actions = document.getElementById('ra-' + dateKey);
+    actions.innerHTML = '<div style="color:var(--cyan);font-size:0.82rem">Estimating...</div>';
+
+    const apiKey = localStorage.getItem('blubr_api_key');
+    if (!apiKey) { actions.innerHTML = '<div style="color:var(--red)">No API key set</div>'; return; }
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 200,
+          system: 'Estimate calories and macros for the described food. Return JSON only: {"calories":number,"protein":number,"carbs":number,"fat":number,"notes":"brief meal name"}',
+          messages: [{ role: 'user', content: desc }]
+        })
+      });
+      const json = await res.json();
+      const text = json.content[0].text;
+      const est = JSON.parse(text);
+      _addMeal(dateKey, est.notes || 'Estimated', est.calories, est.protein||0, est.carbs||0, est.fat||0, { estimated: true });
+      actions.innerHTML = `<div style="color:var(--green)">✓ Logged ${est.calories} cal (${est.notes})</div>`;
+      refreshAll();
+    } catch (e) {
+      actions.innerHTML = `<div style="color:var(--red)">Error: ${e.message}</div>`;
+    }
+  }
+
+  function recoveryEstimate(dateKey, level) {
+    const s = getSettings();
+    const dailyGoal = Math.round(s.weekly / 7);
+    const multiplier = level === 'under' ? 0.8 : level === 'over' ? 1.3 : 1.0;
+    const cal = Math.round(dailyGoal * multiplier);
+    _addMeal(dateKey, 'Estimated', cal, 0, 0, 0, { estimated: true });
+    const actions = document.getElementById('ra-' + dateKey);
+    actions.innerHTML = `<div style="color:var(--green)">✓ Logged ~${cal.toLocaleString()} cal (${level === 'under' ? 'under' : level === 'over' ? 'over' : 'on track'})</div>`;
+    refreshAll();
+  }
+
+  function recoverySkip(dateKey) {
+    const dismissed = JSON.parse(sessionStorage.getItem('blubr_dismissed_days') || '[]');
+    dismissed.push(dateKey);
+    sessionStorage.setItem('blubr_dismissed_days', JSON.stringify(dismissed));
+    const el = document.getElementById('rd-' + dateKey);
+    if (el) el.style.display = 'none';
+    const remaining = document.querySelectorAll('.recovery-day:not([style*="display: none"])');
+    if (remaining.length === 0) closeRecoveryModal();
+  }
+
+  function closeRecoveryModal() { document.getElementById('recoveryOverlay').style.display = 'none'; }
+
   function renderCoachCountdown() {
     const s = getSettings();
     const card = document.getElementById('coachCountdownCard');
@@ -2688,6 +2786,7 @@ Round all numbers to whole integers. Use your best judgment.`
     runCalc();
     refreshAll();
     setTimeout(checkCoachCheckin, 2000);
+    setTimeout(checkMissedDays, 3000);
   }
 
   // init() is called by onAuthStateChange after user data is loaded from Supabase

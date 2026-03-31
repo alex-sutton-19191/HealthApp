@@ -663,6 +663,18 @@
     </div>
   </div>
 
+  <!-- ── MISSED DAY RECOVERY ── -->
+  <div class="overlay" id="recoveryOverlay" style="display:none">
+    <div class="modal" style="max-width:500px">
+      <h3 style="color:var(--yellow)">Missed Days</h3>
+      <div style="font-size:0.82rem;color:var(--muted);margin-bottom:14px">Fill in the gaps to keep your data accurate.</div>
+      <div id="recoveryDays"></div>
+      <div class="modal-btns">
+        <button class="btn-save" onclick="closeRecoveryModal()">Done</button>
+      </div>
+    </div>
+  </div>
+
 <script src="app.js"></script>
 </body>
 </html>

@@ -231,6 +231,7 @@ h1 {
 .cal-cell.yellow  { background: rgba(255,255,0,0.08);  border-color: var(--yellow); }
 .cal-cell.red     { background: rgba(255,51,51,0.1);   border-color: var(--red); }
 .cal-cell.refeed  { background: rgba(68,136,255,0.12); border-color: var(--blue); }
+.cal-cell.estimated { border: 2px dashed rgba(251,191,36,0.4) !important; }
 .cell-num { font-size: 0.65rem; font-weight: 600; }
 .cell-cal { font-size: 0.72rem; margin-top: 2px; opacity: 0.9; font-weight: 600; }
 .cal-cell.green  .cell-cal { color: var(--green); }
