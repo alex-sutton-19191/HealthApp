@@ -710,8 +710,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 .info-btn:hover { border-color: var(--cyan); color: var(--cyan); }
 .info-tooltip {
   position: fixed; z-index: 9999; max-width: 320px; padding: 14px 16px;
-  background: var(--card-bg); border: 2px solid var(--cyan); border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4); font-size: 0.82rem; line-height: 1.6;
+  background: var(--bg, #070008); border: 2px solid var(--cyan); border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6); font-size: 0.82rem; line-height: 1.6;
   color: var(--text); animation: tooltipIn 0.15s ease-out;
 }
 .info-tooltip .info-tooltip-title {
