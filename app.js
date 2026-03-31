@@ -2347,6 +2347,177 @@ Round all numbers to whole integers. Use your best judgment.`
     document.getElementById('waterfallSvg').innerHTML = html;
   }
 
+  /* ── WEEKLY COACH ── */
+  function checkCoachCheckin() {
+    const s = getSettings();
+    const today = new Date(); today.setHours(0,0,0,0);
+    if (today.getDay() !== s.coachDay) return;
+    const coach = ls(COACH_KEY, []);
+    const startDay = s.weekStartDay !== undefined ? s.weekStartDay : 1;
+    const wStart = new Date(today);
+    while (wStart.getDay() !== startDay) wStart.setDate(wStart.getDate() - 1);
+    const wStartStr = makeKey(wStart.getFullYear(), wStart.getMonth(), wStart.getDate());
+    const hasCheckin = coach.some(c => c.date >= wStartStr);
+    if (hasCheckin) return;
+    const apiKey = localStorage.getItem('blubr_api_key');
+    if (!apiKey) return;
+    showCoachModal();
+  }
+
+  async function showCoachModal() {
+    const overlay = document.getElementById('coachOverlay');
+    overlay.style.display = 'flex';
+    const content = document.getElementById('coachContent');
+    const btns = document.getElementById('coachBtns');
+    content.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">Analyzing your week...</div>';
+    btns.innerHTML = '<button class="btn-cancel" onclick="closeCoachModal()">Cancel</button>';
+
+    const s = getSettings();
+    const data = getData();
+    const macros = ls(MACROS_KEY, {});
+    const weights = ls(WEIGHTS_KEY, {});
+    const today = new Date(); today.setHours(0,0,0,0);
+    const startDay = s.weekStartDay !== undefined ? s.weekStartDay : 1;
+    const wStart = new Date(today);
+    while (wStart.getDay() !== startDay) wStart.setDate(wStart.getDate() - 1);
+    wStart.setDate(wStart.getDate() - 7);
+    const wEnd = new Date(wStart); wEnd.setDate(wEnd.getDate() + 7);
+
+    const dailyCal = {}, dailyMac = {}, wtEntries = {};
+    let daysLogged = 0, daysOnTarget = 0, totalCal = 0;
+    const dailyGoal = Math.round(s.weekly / 7);
+    const cur = new Date(wStart);
+    while (cur < wEnd) {
+      const key = makeKey(cur.getFullYear(), cur.getMonth(), cur.getDate());
+      if (data[key] !== undefined) { dailyCal[key] = data[key]; totalCal += data[key]; daysLogged++; if (data[key] <= dailyGoal) daysOnTarget++; }
+      if (macros[key]) dailyMac[key] = macros[key];
+      if (weights[key]) wtEntries[key] = isMetric() ? parseFloat((weights[key]*0.453592).toFixed(1)) : weights[key];
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    const tdee = getStaticTDEE();
+    const pace = ls(CALC_KEY, {}).pace;
+    const paceLabel = pace ? (parseInt(pace) < 0 ? 'bulk' : parseInt(pace) === 0 ? 'maintain' : 'cut') : 'cut';
+    const periodStr = `${makeKey(wStart.getFullYear(),wStart.getMonth(),wStart.getDate())} to ${makeKey(wEnd.getFullYear(),wEnd.getMonth(),wEnd.getDate())}`;
+
+    const payload = {
+      period: periodStr, dailyCalories: dailyCal, dailyMacros: dailyMac, weightEntries: wtEntries,
+      goal: { type: paceLabel, pace: pace || '500', dailyTarget: dailyGoal },
+      adaptiveTDEE: tdee, adherence: { daysLogged, daysOnTarget, avgCalories: daysLogged > 0 ? Math.round(totalCal/daysLogged) : 0 }
+    };
+
+    const apiKey = localStorage.getItem('blubr_api_key');
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 500,
+          system: `You are a friendly nutrition coach inside a calorie tracking app. Be encouraging and adherence-neutral (no shaming). Respond with valid JSON only: {"summary":"2-3 sentences","recommendedCal":number,"recommendedP":number,"recommendedC":number,"recommendedF":number,"tip":"one actionable tip","adjustmentReason":"why or empty string"}. Only recommend changes if data clearly supports it. If data is thin, keep current targets.`,
+          messages: [{ role: 'user', content: JSON.stringify(payload) }]
+        })
+      });
+      const json = await res.json();
+      const text = json.content[0].text;
+      const advice = JSON.parse(text);
+      renderCoachAdvice(advice, dailyGoal, s);
+    } catch (e) {
+      content.innerHTML = `<div style="color:var(--red);padding:12px">Coach unavailable: ${e.message}</div>`;
+      btns.innerHTML = '<button class="btn-cancel" onclick="closeCoachModal()">Close</button>';
+    }
+  }
+
+  function renderCoachAdvice(advice, currentCal, s) {
+    const content = document.getElementById('coachContent');
+    const btns = document.getElementById('coachBtns');
+    const hasChanges = advice.recommendedCal && advice.recommendedCal !== currentCal;
+
+    let html = `<div style="padding:12px;border:2px solid rgba(0,212,255,0.15);background:rgba(0,212,255,0.03);margin-bottom:12px;font-size:0.88rem;line-height:1.7">${escHtml(advice.summary)}</div>`;
+
+    if (hasChanges) {
+      html += `<div style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Recommended Changes</div>`;
+      html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div style="text-align:center;padding:10px;border:1px solid rgba(255,255,255,0.1)">
+          <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase">Current</div>
+          <div style="font-size:1.2rem;font-weight:700">${currentCal.toLocaleString()}</div>
+          <div style="font-size:0.65rem;color:var(--muted)">cal/day</div>
+        </div>
+        <div style="text-align:center;padding:10px;border:2px solid var(--cyan);background:rgba(0,212,255,0.04)">
+          <div style="font-size:0.65rem;color:var(--cyan);text-transform:uppercase">Recommended</div>
+          <div style="font-size:1.2rem;font-weight:700;color:var(--cyan)">${advice.recommendedCal.toLocaleString()}</div>
+          <div style="font-size:0.65rem;color:var(--muted)">cal/day</div>
+        </div>
+      </div>`;
+      if (advice.adjustmentReason) html += `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;font-style:italic">${escHtml(advice.adjustmentReason)}</div>`;
+    }
+
+    if (advice.tip) {
+      html += `<div style="padding:10px 12px;border-left:3px solid var(--green);background:rgba(16,185,129,0.04);font-size:0.82rem;line-height:1.6;color:var(--text)">
+        <span style="font-size:0.62rem;color:var(--green);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Tip of the week</span>
+        ${escHtml(advice.tip)}
+      </div>`;
+    }
+
+    content.innerHTML = html;
+    content.dataset.advice = JSON.stringify(advice);
+
+    if (hasChanges) {
+      btns.innerHTML = `<button class="btn-cancel" onclick="dismissCoach()">Keep Current</button>
+        <button class="btn-save" onclick="acceptCoach()">Accept Changes</button>`;
+    } else {
+      btns.innerHTML = `<button class="btn-save" onclick="dismissCoach()">Got It</button>`;
+    }
+  }
+
+  function acceptCoach() {
+    const content = document.getElementById('coachContent');
+    const advice = JSON.parse(content.dataset.advice || '{}');
+    if (advice.recommendedCal) {
+      const existing = ls(SET_KEY, {});
+      existing.weekly = advice.recommendedCal * 7;
+      existing.green = advice.recommendedCal;
+      existing.red = Math.round(advice.recommendedCal * 1.2);
+      if (advice.recommendedP) existing.macroP = advice.recommendedP;
+      if (advice.recommendedC) existing.macroC = advice.recommendedC;
+      if (advice.recommendedF) existing.macroF = advice.recommendedF;
+      lsSet(SET_KEY, existing);
+      const sWeekly = document.getElementById('sWeekly'); if (sWeekly) sWeekly.value = existing.weekly;
+      const sMacroP = document.getElementById('sMacroP'); if (sMacroP) sMacroP.value = existing.macroP;
+      const sMacroC = document.getElementById('sMacroC'); if (sMacroC) sMacroC.value = existing.macroC;
+      const sMacroF = document.getElementById('sMacroF'); if (sMacroF) sMacroF.value = existing.macroF;
+      const sGreen = document.getElementById('sGreen'); if (sGreen) sGreen.value = existing.green;
+      const sRed = document.getElementById('sRed'); if (sRed) sRed.value = existing.red;
+    }
+    saveCoachEntry(advice, true);
+    closeCoachModal();
+    refreshAll();
+    showToast('Goal updated by coach');
+  }
+
+  function dismissCoach() {
+    const content = document.getElementById('coachContent');
+    const advice = JSON.parse(content.dataset.advice || '{}');
+    saveCoachEntry(advice, false);
+    closeCoachModal();
+  }
+
+  function saveCoachEntry(advice, accepted) {
+    const coach = ls(COACH_KEY, []);
+    const today = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    coach.push({
+      date: `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`,
+      summary: advice.summary || '', recommendedCal: advice.recommendedCal || 0,
+      recommendedP: advice.recommendedP || 0, recommendedC: advice.recommendedC || 0, recommendedF: advice.recommendedF || 0,
+      tip: advice.tip || '', adjustmentReason: advice.adjustmentReason || '', accepted
+    });
+    lsSet(COACH_KEY, coach);
+  }
+
+  function closeCoachModal() { document.getElementById('coachOverlay').style.display = 'none'; }
+  function coachOverlayClick(e) { if (e.target.id === 'coachOverlay') closeCoachModal(); }
+
   /* ── INIT ── */
   function refreshAll() {
     renderToday();
@@ -2487,6 +2658,7 @@ Round all numbers to whole integers. Use your best judgment.`
     loadWeekCoachSettings();
     runCalc();
     refreshAll();
+    setTimeout(checkCoachCheckin, 2000);
   }
 
   // init() is called by onAuthStateChange after user data is loaded from Supabase
