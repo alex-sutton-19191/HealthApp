@@ -8,7 +8,14 @@
   const SUPABASE_URL  = 'https://fhublaxwqbufmorqyzhp.supabase.co';
   const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZodWJsYXh3cWJ1Zm1vcnF5emhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1OTU2MjMsImV4cCI6MjA4ODE3MTYyM30.Rt7Q4YCoaQqKt2lLLUZpdkH4yOsbDL7R6YyNmz-FXFE';
   const _configured = !SUPABASE_URL.includes('YOUR_PROJECT_REF');
-  const _sb = _configured ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
+  const _sb = _configured ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      storageKey: 'blubr-auth',
+      storage: localStorage
+    }
+  }) : null;
 
   /* ── IN-MEMORY CACHE ── */
   let _cache = {
@@ -249,16 +256,24 @@
       if (window.location.hash && window.location.hash.includes('access_token')) {
         history.replaceState(null, '', window.location.pathname);
       }
-    } else {
-      _currentUser = null;
-      showAuthOverlay(true);
     }
   }
 
   if (_configured) {
-    // Handle all auth events including OAuth redirects and session restore
+    // On load, try to restore the existing session first
+    _sb.auth.getSession().then(({ data: { session } }) => {
+      if (session) _handleSession(session);
+    });
+
+    // Handle all auth events including OAuth redirects and token refreshes
     _sb.auth.onAuthStateChange(async (event, session) => {
-      await _handleSession(session);
+      if (event === 'SIGNED_OUT') {
+        _currentUser = null;
+        _initialized = false;
+        showAuthOverlay(true);
+      } else if (session) {
+        await _handleSession(session);
+      }
     });
 
     window.addEventListener('beforeunload', () => {
