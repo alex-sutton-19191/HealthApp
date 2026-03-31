@@ -1349,6 +1349,15 @@ Round all numbers to whole integers. Use your best judgment.`
     } else { banner.style.display='none'; }
   }
 
+  function calcEMA(values, alpha) {
+    if (values.length === 0) return [];
+    const ema = [values[0]];
+    for (let i = 1; i < values.length; i++) {
+      ema.push(alpha * values[i] + (1 - alpha) * ema[i - 1]);
+    }
+    return ema;
+  }
+
   function renderWeightChart() {
     const weights = ls(WEIGHTS_KEY, {});
     const entries = Object.entries(weights).map(([k,v])=>({date:new Date(k+'T12:00:00'),val:v})).sort((a,b)=>a.date-b.date);
@@ -1397,6 +1406,14 @@ Round all numbers to whole integers. Use your best judgment.`
     });
     const step=Math.max(1,Math.floor(entries.length/6));
     for (let i=0;i<entries.length;i+=step) { const e=entries[i]; html+=`<text x="${xS(e.date).toFixed(1)}" y="${H-4}" text-anchor="middle" fill="#6b7280" font-size="10">${e.date.getMonth()+1}/${e.date.getDate()}</text>`; }
+    // Smoothed weight trend (EMA overlay)
+    const sEMA = getSettings();
+    if (sEMA.features.smoothedWeight && entries.length >= 3) {
+      const emaVals = calcEMA(entries.map(e => e.val), 0.1);
+      const emaPts = entries.map((e, i) => `${xS(e.date).toFixed(1)},${yS(emaVals[i]).toFixed(1)}`).join(' ');
+      html += `<polyline points="${emaPts}" fill="none" stroke="rgba(139,92,246,0.85)" stroke-width="3.5" stroke-linecap="round"/>`;
+      html += `<text x="${W-P.r-2}" y="${P.t+12}" text-anchor="end" fill="rgba(139,92,246,0.6)" font-size="10">Trend (EMA)</text>`;
+    }
     svg.innerHTML=html;
   }
 
