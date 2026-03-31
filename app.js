@@ -112,8 +112,68 @@
     showAuthError('');
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
+    // Demo mode bypass
+    if (email === 'admin' && password === 'admin') { _loadDemoData(); return; }
     const { error } = await _sb.auth.signInWithPassword({ email, password });
     if (error) showAuthError(error.message);
+  }
+
+  function _loadDemoData() {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const pad = n => String(n).padStart(2,'0');
+    const mk = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    // Generate 30 days of calorie + meal data
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today); d.setDate(today.getDate() - i);
+      const key = mk(d);
+      const base = 1700 + Math.round(Math.random() * 600);
+      const p = 120 + Math.round(Math.random() * 60);
+      const c = 180 + Math.round(Math.random() * 80);
+      const f = 50 + Math.round(Math.random() * 30);
+      // Skip a couple days to test missed day recovery
+      if (i === 2 || i === 4) continue;
+      _cache.ct_meals[key] = [
+        { name: 'Breakfast', cal: Math.round(base*0.3), p: Math.round(p*0.3), c: Math.round(c*0.35), f: Math.round(f*0.3), ts: Date.now()-i*86400000 },
+        { name: 'Lunch', cal: Math.round(base*0.35), p: Math.round(p*0.35), c: Math.round(c*0.3), f: Math.round(f*0.35), ts: Date.now()-i*86400000+3600000 },
+        { name: 'Dinner', cal: Math.round(base*0.35), p: Math.round(p*0.35), c: Math.round(c*0.35), f: Math.round(f*0.35), ts: Date.now()-i*86400000+7200000 }
+      ];
+      const meals = _cache.ct_meals[key];
+      _cache.ct_data[key] = meals.reduce((s,m) => s+m.cal, 0);
+      _cache.ct_macros[key] = { p: meals.reduce((s,m) => s+m.p, 0), c: meals.reduce((s,m) => s+m.c, 0), f: meals.reduce((s,m) => s+m.f, 0) };
+    }
+    // Generate 20 weight entries
+    let wt = 195;
+    for (let i = 29; i >= 0; i -= 1) {
+      if (Math.random() > 0.35) continue; // ~65% of days have weight
+      const d = new Date(today); d.setDate(today.getDate() - i);
+      wt += (Math.random() - 0.55) * 0.8; // slight downward trend
+      _cache.ct_weights[mk(d)] = parseFloat(wt.toFixed(1));
+    }
+    // Ensure enough weight entries for TDEE
+    for (let i of [0, 3, 7, 14, 21, 28]) {
+      const d = new Date(today); d.setDate(today.getDate() - i);
+      if (!_cache.ct_weights[mk(d)]) {
+        wt += (Math.random() - 0.55) * 0.5;
+        _cache.ct_weights[mk(d)] = parseFloat(wt.toFixed(1));
+      }
+    }
+    // Settings with goal
+    _cache.ct_settings = { weekly: 14000, green: 2000, red: 2400, macroP: 150, macroC: 200, macroF: 65, useMetric: false,
+      weekStartDay: 1, coachDay: today.getDay(),
+      weekendBinge: { enabled: true, days: [5, 6] },
+      features: { tdeeTrend:true, weeklyBudget:true, macroRings:true, streakGrid:true, energyBalance:true, goalWaterfall:true, smoothedWeight:true, copyMeal:true, coachCountdown:true }
+    };
+    // Calculator profile for TDEE fallback
+    _cache.ct_calc = { sex:'male', age:'30', ft:'5', inch:'10', weight:'195', activity:'1.55', pace:'500', goalWeight:'180' };
+    // Presets
+    _cache.ct_presets = [
+      { name: 'Protein Shake', cal: 280, p: 40, c: 15, f: 8 },
+      { name: 'Chicken & Rice', cal: 520, p: 45, c: 55, f: 12 }
+    ];
+    _currentUser = { id: 'demo' };
+    showAuthOverlay(false);
+    _initialized = true;
+    init();
   }
 
   async function authSignUp() {
