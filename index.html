@@ -17,7 +17,7 @@
     <div class="auth-tagline">EAT · TRACK · REPEAT</div>
   </div>
   <div id="authForm" style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:10px">
-    <input id="authEmail" type="email" placeholder="Email address" class="auth-input">
+    <input id="authEmail" type="text" inputmode="email" autocomplete="email" placeholder="Email address" class="auth-input">
     <input id="authPassword" type="password" placeholder="Password" class="auth-input">
     <div id="authError" style="color:var(--red);font-size:0.82rem;min-height:1em;display:none;line-height:1.6;text-align:center"></div>
     <button onclick="authSignIn()" class="auth-btn auth-btn-primary">Sign In</button>
