@@ -2518,6 +2518,34 @@ Round all numbers to whole integers. Use your best judgment.`
   function closeCoachModal() { document.getElementById('coachOverlay').style.display = 'none'; }
   function coachOverlayClick(e) { if (e.target.id === 'coachOverlay') closeCoachModal(); }
 
+  function renderCoachCountdown() {
+    const s = getSettings();
+    const card = document.getElementById('coachCountdownCard');
+    if (!card) return;
+    if (!s.features.coachCountdown) { card.style.display = 'none'; return; }
+    const apiKey = localStorage.getItem('blubr_api_key');
+    if (!apiKey) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    let daysUntil = (s.coachDay - today.getDay() + 7) % 7;
+    const coachDayName = DAYS_LONG[s.coachDay];
+
+    const coach = ls(COACH_KEY, []);
+    const last = coach.length > 0 ? coach[coach.length - 1] : null;
+
+    let html = `<div style="display:flex;align-items:center;gap:12px">
+      <div style="font-size:2rem;color:var(--cyan)">&#129504;</div>
+      <div style="flex:1">
+        <div style="font-size:0.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Weekly Coach</div>
+        <div style="font-size:0.88rem;font-weight:600">${daysUntil === 0 ? 'Check-in today!' : `Next: ${coachDayName} (${daysUntil} day${daysUntil>1?'s':''})`}</div>
+        ${last ? `<div style="font-size:0.72rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(last.tip || last.summary || '').slice(0,60)}...</div>` : ''}
+      </div>
+    </div>`;
+
+    document.getElementById('coachCountdownContent').innerHTML = html;
+  }
+
   /* ── INIT ── */
   function refreshAll() {
     renderToday();
@@ -2538,6 +2566,7 @@ Round all numbers to whole integers. Use your best judgment.`
     renderTDEETrend();
     renderEnergyBalance();
     renderGoalWaterfall();
+    renderCoachCountdown();
   }
 
   /* ── COPY MEAL ── */
