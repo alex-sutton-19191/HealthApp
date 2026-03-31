@@ -2305,6 +2305,48 @@ Round all numbers to whole integers. Use your best judgment.`
     document.getElementById('energySvg').innerHTML=html;
   }
 
+  function renderGoalWaterfall() {
+    const s = getSettings();
+    const card = document.getElementById('goalWaterfallCard');
+    if (!card) return;
+    if (!s.features.goalWaterfall) { card.style.display='none'; return; }
+    const weights = ls(WEIGHTS_KEY, {});
+    const calc = ls(CALC_KEY, {});
+    const goalWt = parseFloat(calc.goalWeight || (document.getElementById('cGoalWeight') ? document.getElementById('cGoalWeight').value : 0));
+    const entries = Object.entries(weights).sort((a,b)=>a[0].localeCompare(b[0]));
+    if (!goalWt || entries.length < 7) { card.style.display='none'; return; }
+    card.style.display='';
+
+    const isCut = entries[0][1] > goalWt;
+    const vals = entries.map(e => e[1]);
+    const ema = calcEMA(vals, 0.1);
+    const changes = [];
+    for (let i = 1; i < ema.length; i++) {
+      const delta = ema[i] - ema[i-1];
+      const toward = isCut ? delta < 0 : delta > 0;
+      changes.push({ date: entries[i][0], delta: Math.abs(delta), toward });
+    }
+    const last30 = changes.slice(-30);
+
+    const W=800,H=160,P={l:48,r:20,t:14,b:28};
+    const pw=W-P.l-P.r, ph=H-P.t-P.b;
+    const maxDelta = Math.max(...last30.map(c=>c.delta), 0.5);
+    const barW = pw/last30.length - 2;
+
+    let html = '';
+    last30.forEach((c, i) => {
+      const x = P.l + i * (pw/last30.length);
+      const barH = Math.max(2, (c.delta/maxDelta) * (ph/2));
+      const y = c.toward ? P.t + ph/2 - barH : P.t + ph/2;
+      const color = c.toward ? 'rgba(16,185,129,0.72)' : 'rgba(239,68,68,0.72)';
+      html += `<rect x="${(x+1).toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" fill="${color}" rx="2"><title>${c.date}: ${c.toward?'↓':'↑'} ${c.delta.toFixed(2)} lbs</title></rect>`;
+    });
+    html += `<line x1="${P.l}" y1="${P.t+ph/2}" x2="${W-P.r}" y2="${P.t+ph/2}" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>`;
+    for(let i=0;i<last30.length;i+=5){const d=last30[i];const x=P.l+i*(pw/last30.length);html+=`<text x="${(x+barW/2).toFixed(1)}" y="${H-4}" text-anchor="middle" fill="#6b7280" font-size="10">${d.date.slice(5)}</text>`;}
+
+    document.getElementById('waterfallSvg').innerHTML = html;
+  }
+
   /* ── INIT ── */
   function refreshAll() {
     renderToday();
@@ -2324,6 +2366,7 @@ Round all numbers to whole integers. Use your best judgment.`
     renderCopyLastMeal();
     renderTDEETrend();
     renderEnergyBalance();
+    renderGoalWaterfall();
   }
 
   /* ── COPY MEAL ── */
