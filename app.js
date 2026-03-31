@@ -2113,6 +2113,56 @@ Round all numbers to whole integers. Use your best judgment.`
     document.getElementById('weeklyBudgetContent').innerHTML = html;
   }
 
+  function renderCopyLastMeal() {
+    const s = getSettings();
+    const card = document.getElementById('copyLastMealCard');
+    if (!card) return;
+    if (!s.features.copyMeal) { card.style.display = 'none'; return; }
+
+    const meals = ls(MEALS_KEY, {});
+    let lastMeal = null;
+    const sortedDays = Object.keys(meals).sort().reverse();
+    for (const day of sortedDays) {
+      const dayMeals = meals[day];
+      if (dayMeals && dayMeals.length > 0) {
+        lastMeal = dayMeals[dayMeals.length - 1];
+        break;
+      }
+    }
+    if (!lastMeal) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const macStr = (lastMeal.p||lastMeal.c||lastMeal.f)
+      ? `<span style="font-size:0.72rem;color:var(--muted2)"> · P${lastMeal.p||0} C${lastMeal.c||0} F${lastMeal.f||0}</span>` : '';
+
+    document.getElementById('copyLastMealContent').innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Quick Re-log</div>
+          <div style="font-weight:600;font-size:0.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(lastMeal.name)}</div>
+          <div style="font-size:0.78rem;color:var(--yellow)">${lastMeal.cal.toLocaleString()} cal${macStr}</div>
+        </div>
+        <button onclick="relogLastMeal()" style="padding:10px 16px;background:rgba(16,185,129,0.1);border:2px solid var(--green);color:var(--green);font-size:0.72rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;white-space:nowrap;box-shadow:2px 2px 0 rgba(0,255,65,0.15)">Log Again</button>
+      </div>`;
+  }
+
+  function relogLastMeal() {
+    const meals = ls(MEALS_KEY, {});
+    const sortedDays = Object.keys(meals).sort().reverse();
+    let lastMeal = null;
+    for (const day of sortedDays) {
+      if (meals[day] && meals[day].length > 0) { lastMeal = meals[day][meals[day].length - 1]; break; }
+    }
+    if (!lastMeal) return;
+    const today = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    const todayKey = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+    _addMeal(todayKey, lastMeal.name, lastMeal.cal, lastMeal.p||0, lastMeal.c||0, lastMeal.f||0);
+    refreshAll();
+    showToast(`Logged ${lastMeal.cal.toLocaleString()} cal`);
+    showSuccessBurst();
+  }
+
   /* ── INIT ── */
   function refreshAll() {
     renderToday();
@@ -2129,6 +2179,7 @@ Round all numbers to whole integers. Use your best judgment.`
     renderGoalSummary();
     renderWeeklyBudget();
     renderStreakGrid();
+    renderCopyLastMeal();
   }
 
   /* ── COPY MEAL ── */
