@@ -910,6 +910,30 @@ Round all numbers to whole integers. Use your best judgment.`
   }
 
   /* ── HOME PAGE ── */
+  function renderMacroRings(mac, goals) {
+    const rings = [
+      { key: 'p', label: 'P', color: '#f472b6', val: mac.p||0, goal: goals.p },
+      { key: 'c', label: 'C', color: '#60a5fa', val: mac.c||0, goal: goals.c },
+      { key: 'f', label: 'F', color: '#fbbf24', val: mac.f||0, goal: goals.f },
+    ];
+    return `<div style="display:flex;justify-content:center;gap:20px;margin-top:12px">${rings.map(r => {
+      const pct = r.goal > 0 ? Math.min(r.val / r.goal, 1) : 0;
+      const radius = 30, circ = 2 * Math.PI * radius;
+      const offset = circ * (1 - pct);
+      return `<div style="text-align:center">
+        <svg width="76" height="76" viewBox="0 0 76 76">
+          <circle cx="38" cy="38" r="${radius}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6"/>
+          <circle cx="38" cy="38" r="${radius}" fill="none" stroke="${r.color}" stroke-width="6"
+            stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}"
+            stroke-linecap="round" transform="rotate(-90 38 38)" style="transition:stroke-dashoffset 0.5s"/>
+          <text x="38" y="35" text-anchor="middle" fill="${r.color}" font-size="14" font-weight="700">${Math.round(pct*100)}%</text>
+          <text x="38" y="50" text-anchor="middle" fill="#6b7280" font-size="9">${r.val}/${r.goal}g</text>
+        </svg>
+        <div style="font-size:0.68rem;color:${r.color};font-weight:600;margin-top:-2px">${r.label}</div>
+      </div>`;
+    }).join('')}</div>`;
+  }
+
   function renderToday() {
     const today = new Date();
     const key   = makeKey(today.getFullYear(), today.getMonth(), today.getDate());
@@ -954,18 +978,22 @@ Round all numbers to whole integers. Use your best judgment.`
 
       if (mac) {
         const macGoals = { p: s.macroP, c: s.macroC, f: s.macroF };
-        const macColors = { p: '#f472b6', c: '#60a5fa', f: '#fbbf24' };
-        const macLabels = { p: 'P', c: 'C', f: 'F' };
-        html += `<div class="today-macros-display" style="margin-top:8px">P ${mac.p}g · C ${mac.c}g · F ${mac.f}g</div>`;
-        html += `<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">`;
-        for (const k of ['p','c','f']) {
-          const logged = mac[k] || 0;
-          const goal = macGoals[k];
-          const mp = goal > 0 ? Math.min((logged / goal) * 100, 100) : 0;
-          html += `<div style="font-size:0.72rem;color:var(--muted2)">${macLabels[k]}: ${logged}g / ${goal}g</div>`;
-          html += `<div class="bar-wrap" style="height:10px;margin-bottom:2px"><div class="bar-fill" style="width:${mp.toFixed(1)}%;background:${macColors[k]};min-width:0;font-size:0"></div></div>`;
+        if (s.features.macroRings) {
+          html += renderMacroRings(mac, macGoals);
+        } else {
+          html += `<div class="today-macros-display" style="margin-top:8px">P ${mac.p}g · C ${mac.c}g · F ${mac.f}g</div>`;
+          html += `<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">`;
+          const macColors = { p: '#f472b6', c: '#60a5fa', f: '#fbbf24' };
+          const macLabels = { p: 'P', c: 'C', f: 'F' };
+          for (const k of ['p','c','f']) {
+            const logged = mac[k] || 0;
+            const goal = macGoals[k];
+            const mp = goal > 0 ? Math.min((logged / goal) * 100, 100) : 0;
+            html += `<div style="font-size:0.72rem;color:var(--muted2)">${macLabels[k]}: ${logged}g / ${goal}g</div>`;
+            html += `<div class="bar-wrap" style="height:10px;margin-bottom:2px"><div class="bar-fill" style="width:${mp.toFixed(1)}%;background:${macColors[k]};min-width:0;font-size:0"></div></div>`;
+          }
+          html += `</div>`;
         }
-        html += `</div>`;
       }
 
       if (note) html += `<div class="today-note-display">"${escHtml(note)}"</div>`;
