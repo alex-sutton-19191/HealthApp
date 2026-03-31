@@ -2667,7 +2667,7 @@ Round all numbers to whole integers. Use your best judgment.`
       const d = new Date(today); d.setDate(today.getDate() - i);
       const key = makeKey(d.getFullYear(), d.getMonth(), d.getDate());
       if (data[key] === undefined) {
-        const dismissed = JSON.parse(sessionStorage.getItem('blubr_dismissed_days') || '[]');
+        const dismissed = JSON.parse(localStorage.getItem('blubr_dismissed_days') || '[]');
         if (!dismissed.includes(key)) missed.push({ date: d, key });
       }
     }
@@ -2742,9 +2742,9 @@ Round all numbers to whole integers. Use your best judgment.`
   }
 
   function recoverySkip(dateKey) {
-    const dismissed = JSON.parse(sessionStorage.getItem('blubr_dismissed_days') || '[]');
+    const dismissed = JSON.parse(localStorage.getItem('blubr_dismissed_days') || '[]');
     dismissed.push(dateKey);
-    sessionStorage.setItem('blubr_dismissed_days', JSON.stringify(dismissed));
+    localStorage.setItem('blubr_dismissed_days', JSON.stringify(dismissed));
     const el = document.getElementById('rd-' + dateKey);
     if (el) el.style.display = 'none';
     const remaining = document.querySelectorAll('.recovery-day:not([style*="display: none"])');
