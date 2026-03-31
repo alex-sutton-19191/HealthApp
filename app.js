@@ -2063,6 +2063,56 @@ Round all numbers to whole integers. Use your best judgment.`
     document.getElementById('streakStartLabel').textContent = `${startDate.getMonth()+1}/${startDate.getDate()}`;
   }
 
+  function renderWeeklyBudget() {
+    const s = getSettings();
+    const card = document.getElementById('weeklyBudgetCard');
+    if (!card) return;
+    if (!s.features.weeklyBudget) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    const data = getData();
+    const today = new Date(); today.setHours(0,0,0,0);
+    const startDay = s.weekStartDay !== undefined ? s.weekStartDay : 0;
+    const wStart = new Date(today);
+    while (wStart.getDay() !== startDay) wStart.setDate(wStart.getDate() - 1);
+
+    let consumed = 0;
+    const dayDetails = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(wStart); d.setDate(wStart.getDate() + i);
+      const key = makeKey(d.getFullYear(), d.getMonth(), d.getDate());
+      const cal = data[key] || 0;
+      const isBinge = s.weekendBinge.enabled && s.weekendBinge.days.includes(d.getDay());
+      const isPast = d <= today;
+      if (isPast && data[key] !== undefined) consumed += cal;
+      dayDetails.push({ date: d, cal, isBinge, logged: data[key] !== undefined, isPast });
+    }
+
+    const banking = getBankedCalories();
+    const totalBudget = s.weekly;
+    const pct = totalBudget > 0 ? Math.min((consumed / totalBudget) * 100, 100) : 0;
+    const remaining = totalBudget - consumed;
+    const barColor = consumed <= totalBudget ? 'linear-gradient(90deg,#10b981,#34d399)' : 'linear-gradient(90deg,#ef4444,#f87171)';
+
+    let html = `<div style="font-size:0.82rem;color:var(--muted);margin-bottom:8px">${consumed.toLocaleString()} of ${totalBudget.toLocaleString()} consumed`;
+    if (s.weekendBinge.enabled && banking.banked > 0) html += ` <span style="color:var(--yellow)">(${banking.banked.toLocaleString()} banked)</span>`;
+    html += `</div>`;
+    html += `<div class="bar-wrap"><div class="bar-fill" style="width:${pct.toFixed(1)}%;background:${barColor}">${Math.round(pct)}%</div></div>`;
+    html += `<div style="font-size:0.72rem;color:var(--muted2);margin-top:6px">${remaining > 0 ? remaining.toLocaleString() + ' cal remaining' : Math.abs(remaining).toLocaleString() + ' cal over budget'}</div>`;
+
+    html += `<div style="display:flex;gap:4px;margin-top:10px">`;
+    const dailyGoal = Math.round(s.weekly / 7);
+    dayDetails.forEach(dd => {
+      const dayLetter = DAYS_SHORT[dd.date.getDay()];
+      let bg = 'rgba(255,255,255,0.04)';
+      if (dd.logged) bg = dd.cal <= dailyGoal ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)';
+      const border = dd.isBinge ? '2px solid var(--yellow)' : '1px solid rgba(255,255,255,0.08)';
+      html += `<div style="flex:1;text-align:center;padding:4px 0;background:${bg};border:${border};font-size:0.6rem;color:var(--muted)">${dayLetter}</div>`;
+    });
+    html += `</div>`;
+
+    document.getElementById('weeklyBudgetContent').innerHTML = html;
+  }
+
   /* ── INIT ── */
   function refreshAll() {
     renderToday();
@@ -2077,6 +2127,7 @@ Round all numbers to whole integers. Use your best judgment.`
     renderHistory();
     renderProgressPhotos();
     renderGoalSummary();
+    renderWeeklyBudget();
     renderStreakGrid();
   }
 
