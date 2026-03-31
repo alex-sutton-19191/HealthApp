@@ -2028,6 +2028,41 @@ Round all numbers to whole integers. Use your best judgment.`
   document.getElementById('pCal')?.addEventListener('keydown',      e=>{ if(e.key==='Enter') addPreset(); });
   document.getElementById('pName')?.addEventListener('keydown',     e=>{ if(e.key==='Enter') document.getElementById('pCal').focus(); });
 
+  function renderStreakGrid() {
+    const s = getSettings();
+    if (!s.features.streakGrid) { const el = document.getElementById('streakGridCard'); if (el) el.style.display='none'; return; }
+    const el = document.getElementById('streakGridCard'); if (el) el.style.display='';
+    const data = getData();
+    const today = new Date(); today.setHours(0,0,0,0);
+    const totalDays = 91;
+
+    const gridEl = document.getElementById('streakGrid');
+    if (!gridEl) return;
+    let html = '';
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - totalDays + 1);
+    const padStart = startDate.getDay();
+    for (let i = 0; i < padStart; i++) html += `<div style="width:100%;aspect-ratio:1"></div>`;
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(startDate); d.setDate(startDate.getDate() + i);
+      const key = makeKey(d.getFullYear(), d.getMonth(), d.getDate());
+      const logged = data[key] !== undefined;
+      const isToday = d.getTime() === today.getTime();
+      html += `<div style="width:100%;aspect-ratio:1;border-radius:2px;background:${logged ? 'var(--green)' : 'rgba(255,255,255,0.04)'};opacity:${logged ? '0.85' : '1'};${isToday ? 'border:1.5px solid var(--cyan)' : ''}" title="${d.toLocaleDateString()}${logged ? ' ✓' : ''}"></div>`;
+    }
+    gridEl.innerHTML = html;
+
+    let streak = 0;
+    const cur = new Date(today);
+    for (let i = 0; i < 3650; i++) {
+      const k = makeKey(cur.getFullYear(), cur.getMonth(), cur.getDate());
+      if (data[k] !== undefined) { streak++; cur.setDate(cur.getDate()-1); } else break;
+    }
+    document.getElementById('streakCount').textContent = streak;
+    document.getElementById('streakLabel').textContent = streak === 1 ? 'day streak' : 'day streak';
+    document.getElementById('streakStartLabel').textContent = `${startDate.getMonth()+1}/${startDate.getDate()}`;
+  }
+
   /* ── INIT ── */
   function refreshAll() {
     renderToday();
@@ -2042,6 +2077,7 @@ Round all numbers to whole integers. Use your best judgment.`
     renderHistory();
     renderProgressPhotos();
     renderGoalSummary();
+    renderStreakGrid();
   }
 
   /* ── COPY MEAL ── */
