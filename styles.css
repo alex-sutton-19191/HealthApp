@@ -736,7 +736,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 
 /* ══════════ MOBILE ══════════ */
 @media (max-width: 600px) {
-  body { padding: 20px 12px 88px; }
+  body { padding: 20px 12px calc(88px + env(safe-area-inset-bottom, 0px)); }
 
   /* Logo — keep the drama, just a touch smaller */
   h1 { font-size: 2rem; letter-spacing: 4px; }
