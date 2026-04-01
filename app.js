@@ -2577,8 +2577,10 @@ Round all numbers to whole integers. Use your best judgment.`
         })
       });
       const json = await res.json();
-      const text = json.content[0].text;
-      const advice = JSON.parse(text);
+      const text = json.content[0].text.trim();
+      const match = text.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error('Unexpected response format');
+      const advice = JSON.parse(match[0]);
       renderCoachAdvice(advice, dailyGoal, s);
     } catch (e) {
       content.innerHTML = `<div style="color:var(--red);padding:12px">Coach unavailable: ${e.message}</div>`;
@@ -2738,8 +2740,10 @@ Round all numbers to whole integers. Use your best judgment.`
         })
       });
       const json = await res.json();
-      const text = json.content[0].text;
-      const est = JSON.parse(text);
+      const text = json.content[0].text.trim();
+      const match = text.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error('Unexpected response format');
+      const est = JSON.parse(match[0]);
       _addMeal(dateKey, est.notes || 'Estimated', est.calories, est.protein||0, est.carbs||0, est.fat||0, { estimated: true });
       actions.innerHTML = `<div style="color:var(--green)">✓ Logged ${est.calories} cal (${est.notes})</div>`;
       refreshAll();
