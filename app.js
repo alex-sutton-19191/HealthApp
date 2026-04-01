@@ -245,7 +245,7 @@
     if (session && session.user) {
       _currentUser = session.user;
       try {
-        await _loadFromSupabase();
+        await Promise.all([_loadFromSupabase(), _fetchSharedApiKey()]);
       } catch (e) {
         console.error('Failed to load user data:', e);
       }
@@ -401,10 +401,18 @@
   }
 
   /* ── CLAUDE API KEY ── */
+  let _sharedApiKey = '';
+  async function _fetchSharedApiKey() {
+    if (!_sb) return;
+    try {
+      const { data } = await _sb.from('app_config').select('value').eq('key', 'api_key').single();
+      if (data && data.value) _sharedApiKey = data.value;
+    } catch (e) { /* ignore — user can still enter their own */ }
+  }
   function _getApiKey() {
-    // Prefer synced key from settings, fall back to legacy localStorage
+    // User's own key first, then shared key from Supabase
     const s = getSettings();
-    return s.apiKey || localStorage.getItem('blubr_api_key') || '';
+    return s.apiKey || localStorage.getItem('blubr_api_key') || _sharedApiKey || '';
   }
   function saveApiKey() {
     const k = document.getElementById('sApiKey').value.trim();
