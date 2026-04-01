@@ -523,6 +523,14 @@
     <div class="card" style="border-color:rgba(239,68,68,0.2)">
       <div class="card-title" style="color:var(--red)">Account</div>
       <button class="btn-export" onclick="authLogout()" id="settingsLogoutBtn" style="border-color:var(--red);color:var(--red);box-shadow:2px 2px 0 var(--red);width:100%">Log Out</button>
+      <button class="btn-export" onclick="confirmResetData()" style="border-color:var(--red);color:var(--red);box-shadow:2px 2px 0 var(--red);width:100%;margin-top:8px">Reset All Data</button>
+      <div id="resetConfirm" style="display:none;margin-top:10px;padding:12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);text-align:center">
+        <div style="font-size:0.8rem;color:var(--red);margin-bottom:10px;line-height:1.5">This will permanently delete all your tracking data, meals, weights, photos, and presets. Your settings and account will be kept.</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-export" onclick="cancelResetData()" style="flex:1;border-color:var(--muted);color:var(--muted)">Cancel</button>
+          <button class="btn-export" onclick="executeResetData()" style="flex:1;border-color:var(--red);color:#fff;background:var(--red);box-shadow:2px 2px 0 darkred">Yes, Delete Everything</button>
+        </div>
+      </div>
     </div>
 
   </div><!-- /page-settings -->
