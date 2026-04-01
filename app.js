@@ -26,9 +26,17 @@
   let _currentUser = null;
   let _syncTimer   = null;
   let _dataLoaded  = false;  // true after _loadFromSupabase completes
+  let _savePending = false;  // true when there are unsaved changes in _cache
+  let _saveInFlight = null;  // current save promise (to await before reload)
+  let _accessToken = '';     // current auth token for beforeunload saves
 
   async function _loadFromSupabase() {
     if (!_currentUser || !_sb) return;
+    // Don't re-load if we already have data and there are unsaved changes
+    if (_dataLoaded && _savePending) {
+      console.warn('Skipping reload — unsaved changes in cache');
+      return;
+    }
     const { data, error } = await _sb
       .from('user_data')
       .select('*')
@@ -40,6 +48,7 @@
       keys.forEach(k => { if (data[k] !== undefined) _cache[k] = data[k]; });
     }
     _dataLoaded = true;
+    _savePending = false;
     await _migrateLocalStorage();
   }
 
@@ -58,15 +67,36 @@
 
   function _scheduleSave() {
     if (!_configured) return;  // local mode: handled by ls/lsSet localStorage fallback
+    _savePending = true;
+    // Also persist to localStorage as a safety net (quick backup)
+    try { localStorage.setItem('blubr_cache_backup', JSON.stringify(_cache)); } catch {}
     clearTimeout(_syncTimer);
     _syncTimer = setTimeout(_flushToSupabase, 1500);
+  }
+
+  // Call this for critical mutations (add/delete/edit meal) — saves immediately
+  function _saveNow() {
+    if (!_configured) return;
+    _savePending = true;
+    try { localStorage.setItem('blubr_cache_backup', JSON.stringify(_cache)); } catch {}
+    clearTimeout(_syncTimer);
+    _flushToSupabase();
   }
 
   async function _flushToSupabase() {
     if (!_currentUser || !_sb) return;
     if (!_dataLoaded) { console.warn('Skipping save — data not loaded yet'); return; }
-    const { error } = await _sb.from('user_data').upsert({ id: _currentUser.id, ..._cache }, { onConflict: 'id' });
-    if (error) console.error('Save error:', error);
+    const payload = { id: _currentUser.id, ..._cache };
+    const promise = _sb.from('user_data').upsert(payload, { onConflict: 'id' });
+    _saveInFlight = promise;
+    const { error } = await promise;
+    _saveInFlight = null;
+    if (error) {
+      console.error('Save error:', error);
+    } else {
+      _savePending = false;
+      try { localStorage.removeItem('blubr_cache_backup'); } catch {}
+    }
   }
 
   /* ── CONSTANTS ── */
@@ -240,6 +270,9 @@
     _currentUser = null;
     _initialized = false;  // Reset so init() re-runs on next login
     _dataLoaded = false;
+    _sessionHandled = false;
+    _savePending = false;
+    try { localStorage.removeItem('blubr_cache_backup'); } catch {}
     showAuthOverlay(true);
   }
 
@@ -253,21 +286,70 @@
   async function executeResetData() {
     const settings = getSettings();  // Preserve settings
     _cache = { ct_data:{}, ct_macros:{}, ct_notes:{}, ct_refeed:{}, ct_weights:{}, ct_presets:[], ct_settings: settings, ct_calc:{}, ct_photos:{}, ct_meals:{}, ct_tdee:{}, ct_coach:[] };
-    await _flushToSupabase();
+    _savePending = true;
+    try { localStorage.removeItem('blubr_cache_backup'); } catch {}
+    await _flushToSupabase();  // Wait for server confirmation
     document.getElementById('resetOverlay').style.display = 'none';
     refreshAll();
+    showToast('All data has been reset');
   }
 
   let _initialized = false;
 
+  let _sessionHandled = false;  // prevent double handling on page load
+
   async function _handleSession(session) {
     if (session && session.user) {
+      // Always capture the latest access token for beforeunload saves
+      _accessToken = session.access_token || '';
+      // If we already handled this session and data is loaded, just update the user ref
+      if (_sessionHandled && _dataLoaded && _currentUser && _currentUser.id === session.user.id) {
+        _currentUser = session.user;  // update token but don't reload data
+        showAuthOverlay(false);
+        return;
+      }
       _currentUser = session.user;
+      _sessionHandled = true;
       try {
         await Promise.all([_loadFromSupabase(), _fetchSharedApiKey()]);
       } catch (e) {
         console.error('Failed to load user data:', e);
       }
+      // Check if there was a backup from a previous failed save
+      try {
+        const backup = localStorage.getItem('blubr_cache_backup');
+        if (backup && _dataLoaded) {
+          const saved = JSON.parse(backup);
+          // If backup has meals the server doesn't, restore them
+          if (saved.ct_meals) {
+            let restored = false;
+            Object.keys(saved.ct_meals).forEach(day => {
+              const backupMeals = saved.ct_meals[day];
+              const currentMeals = (_cache.ct_meals && _cache.ct_meals[day]) || [];
+              if (backupMeals.length > currentMeals.length) {
+                _cache.ct_meals[day] = backupMeals;
+                restored = true;
+              }
+            });
+            if (restored) {
+              // Recalc totals from restored meals
+              Object.keys(_cache.ct_meals).forEach(day => {
+                const meals = _cache.ct_meals[day];
+                if (meals && meals.length > 0) {
+                  _cache.ct_data[day] = meals.reduce((s,m) => s + m.cal, 0);
+                  const p = meals.reduce((s,m) => s + (m.p||0), 0);
+                  const c = meals.reduce((s,m) => s + (m.c||0), 0);
+                  const f = meals.reduce((s,m) => s + (m.f||0), 0);
+                  if (p||c||f) _cache.ct_macros[day] = {p,c,f};
+                }
+              });
+              console.log('Restored meals from local backup');
+              _saveNow();
+            }
+          }
+          localStorage.removeItem('blubr_cache_backup');
+        }
+      } catch (e) { console.warn('Backup restore check failed:', e); }
       showAuthOverlay(false);
       if (!_initialized) { _initialized = true; init(); }
       else refreshAll();  // Re-render if already initialized (e.g. re-login)
@@ -289,14 +371,50 @@
       if (event === 'SIGNED_OUT') {
         _currentUser = null;
         _initialized = false;
+        _sessionHandled = false;
+        _dataLoaded = false;
+        _savePending = false;
         showAuthOverlay(true);
+      } else if (event === 'TOKEN_REFRESHED') {
+        // Just update the user ref and token, don't reload data
+        if (session && session.user) { _currentUser = session.user; _accessToken = session.access_token || ''; }
       } else if (session) {
         await _handleSession(session);
       }
     });
 
+    // Save on page unload — use sendBeacon for reliability
     window.addEventListener('beforeunload', () => {
-      if (_syncTimer) { clearTimeout(_syncTimer); _flushToSupabase(); }
+      if (_savePending && _currentUser) {
+        clearTimeout(_syncTimer);
+        // sendBeacon is the only reliable way to send data during page unload
+        const payload = JSON.stringify({ id: _currentUser.id, ..._cache });
+        try {
+          // Use Supabase REST API directly via sendBeacon
+          const url = SUPABASE_URL + '/rest/v1/user_data?on_conflict=id';
+          const blob = new Blob([payload], { type: 'application/json' });
+          // sendBeacon can't set custom headers, so fall back to fetch keepalive
+          fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_ANON,
+              'Authorization': 'Bearer ' + _accessToken,
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: payload,
+            keepalive: true  // ensures request survives page unload
+          }).catch(() => {});
+        } catch {}
+      }
+    });
+
+    // Also save on visibility change (covers iOS app switching/minimizing)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' && _savePending) {
+        clearTimeout(_syncTimer);
+        _flushToSupabase();
+      }
     });
   } else {
     // Supabase not configured yet — run in local mode (localStorage), skip auth overlay
@@ -692,6 +810,7 @@
     const presets = ls(PRESETS_KEY, []);
     presets.push({ name, cal, p, c, f });
     lsSet(PRESETS_KEY, presets);
+    _saveNow();
     renderPresets();
     showToast(`Saved "${name}" preset`);
     closeAddMenu();
@@ -709,6 +828,7 @@
     const weights = ls(WEIGHTS_KEY, {});
     weights[dateKey] = w;
     lsSet(WEIGHTS_KEY, weights);
+    _saveNow();
     refreshAll();
     const s    = getSettings();
     const unit = s.useMetric ? 'kg' : 'lbs';
@@ -744,6 +864,7 @@
       const photos = ls('ct_photos', {});
       photos[dateKey] = base64;
       lsSet('ct_photos', photos);
+      _saveNow();
       renderProgressPhotos();
       showSuccessBurst();
       showToast('Progress photo saved');
@@ -784,6 +905,7 @@
     const photos = ls('ct_photos', {});
     delete photos[dateKey];
     lsSet('ct_photos', photos);
+    _saveNow();
     renderProgressPhotos();
   }
 
@@ -1229,6 +1351,7 @@ Round all numbers to whole integers. Use your best judgment.`
     meals[dateKey].push(meal);
     lsSet(MEALS_KEY, meals);
     _recalcDay(dateKey);
+    _saveNow();  // critical mutation — save immediately
     return true;
   }
 
@@ -1258,6 +1381,7 @@ Round all numbers to whole integers. Use your best judgment.`
     if (meals[dateKey].length === 0) delete meals[dateKey];
     lsSet(MEALS_KEY, meals);
     _recalcDay(dateKey);
+    _saveNow();  // critical mutation — save immediately
   }
 
   function _updateMeal(dateKey, index, name, cal, p, c, f) {
@@ -1266,6 +1390,7 @@ Round all numbers to whole integers. Use your best judgment.`
     meals[dateKey][index] = { ...meals[dateKey][index], name, cal: parseInt(cal,10), p:p||0, c:c||0, f:f||0 };
     lsSet(MEALS_KEY, meals);
     _recalcDay(dateKey);
+    _saveNow();  // critical mutation — save immediately
   }
 
   /* Legacy compat: _doLog now adds a meal */
@@ -1458,6 +1583,7 @@ Round all numbers to whole integers. Use your best judgment.`
     const presets = ls(PRESETS_KEY, []);
     presets.push({ name, cal, p, c, f });
     lsSet(PRESETS_KEY, presets);
+    _saveNow();
     document.getElementById('pName').value=''; document.getElementById('pCal').value='';
     document.getElementById('pPresetP').value=''; document.getElementById('pPresetC').value=''; document.getElementById('pPresetF').value='';
     renderPresets();
@@ -1467,6 +1593,7 @@ Round all numbers to whole integers. Use your best judgment.`
     const presets = ls(PRESETS_KEY, []);
     presets.splice(i, 1);
     lsSet(PRESETS_KEY, presets);
+    _saveNow();
     renderPresets();
   }
 
@@ -1507,6 +1634,7 @@ Round all numbers to whole integers. Use your best judgment.`
     const rawVal = parseFloat(wtVal);
     weights[makeKey(y, m-1, d)] = isMetric() ? rawVal / 0.453592 : rawVal;
     lsSet(WEIGHTS_KEY, weights);
+    _saveNow();
     document.getElementById('wtVal').value = '';
     renderWeightChart();
     checkRecalcBanner();
@@ -1906,6 +2034,7 @@ Round all numbers to whole integers. Use your best judgment.`
     const data=getData(), notes=ls(NOTES_KEY,{}), refeed=ls(REFEED_KEY,{}), macros=ls(MACROS_KEY,{});
     delete data[modalKey]; delete notes[modalKey]; delete refeed[modalKey]; delete macros[modalKey];
     saveData(data); lsSet(NOTES_KEY,notes); lsSet(REFEED_KEY,refeed); lsSet(MACROS_KEY,macros);
+    _saveNow();
     _renderModalMeals();
     refreshAll();
     showToast('Day cleared');
@@ -1921,7 +2050,7 @@ Round all numbers to whole integers. Use your best judgment.`
 
   function closeModal() {
     // Save notes/refeed on close
-    if (modalKey) _saveModalMeta();
+    if (modalKey) { _saveModalMeta(); _saveNow(); }
     document.getElementById('overlay').classList.remove('show');
     document.getElementById('modalMealForm').style.display = 'none';
     modalKey = null;
@@ -1975,6 +2104,7 @@ Round all numbers to whole integers. Use your best judgment.`
         count++;
       });
       saveData(data); lsSet(NOTES_KEY,notes); lsSet(REFEED_KEY,refeed); lsSet(WEIGHTS_KEY,weights); lsSet(MACROS_KEY,macros);
+      _saveNow();
       refreshAll();
       alert('Imported ' + count + ' rows!');
       e.target.value='';
