@@ -148,20 +148,11 @@
 
     <!-- Stats Bar -->
     <div class="stats-bar">
-      <div class="sbar-box"><div class="sbar-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div><div><div class="sbar-val" id="sbStreak">0</div><div class="sbar-lbl">Day Streak</div></div></div>
       <div class="sbar-box"><div class="sbar-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div><div class="sbar-val" id="sb7Avg">—</div><div class="sbar-lbl">7-Day Avg</div></div></div>
       <div class="sbar-box"><div class="sbar-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><div class="sbar-val" id="sbTotal">0</div><div class="sbar-lbl">Days Logged</div></div></div>
     </div>
 
-    <div class="card" id="streakGridCard">
-      <div class="card-title">Logging Streak <button class="info-btn" onclick="showInfo(this,'Logging Streak','A heatmap of your last 91 days. Green squares mean you logged food that day. Your current streak count shows how many consecutive days you\'ve logged — keep it going!')">i</button></div>
-      <div id="streakCount" style="font-size:2rem;font-weight:700;color:var(--green);text-align:center;margin-bottom:8px"></div>
-      <div id="streakLabel" style="font-size:0.72rem;color:var(--muted);text-align:center;margin-bottom:14px;text-transform:uppercase;letter-spacing:1px"></div>
-      <div id="streakGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;max-width:320px;margin:0 auto"></div>
-      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:0.62rem;color:var(--muted2);max-width:320px;margin-left:auto;margin-right:auto">
-        <span id="streakStartLabel"></span><span>Today</span>
-      </div>
-    </div>
+    <div class="card" id="streakGridCard" style="display:none"></div>
 
     <div class="card">
       <div class="card-title">Weight Log</div>

@@ -2908,7 +2908,6 @@ Round all numbers to whole integers. Use your best judgment.`
     tdeeTrend: { label: 'TDEE Trend', desc: 'Adaptive estimate of your daily calorie burn based on real weight + intake data.' },
     weeklyBudget: { label: 'Weekly Calorie Budget', desc: 'Visual bar showing calories consumed vs. your weekly total. Integrates with calorie banking.' },
     macroRings: { label: 'Macro Rings', desc: 'Circular progress rings for protein, carbs, and fat on the Today card.' },
-    streakGrid: { label: 'Streak & Consistency', desc: 'GitHub-style heatmap of the last 91 days showing your logging streak.' },
     energyBalance: { label: 'Energy Balance', desc: '60-day chart comparing your intake vs. expenditure with deficit/surplus shading.' },
     goalWaterfall: { label: 'Goal Waterfall', desc: 'Daily weight changes toward or away from your goal, using smoothed data.' },
     smoothedWeight: { label: 'Smoothed Weight Trend', desc: 'EMA trend line on your weight chart that filters out daily fluctuations.' },
