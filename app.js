@@ -2733,18 +2733,8 @@ Round all numbers to whole integers. Use your best judgment.`
   function recoveryEstimate(dateKey, level) {
     const s = getSettings();
     const dailyGoal = Math.round(s.weekly / 7);
-
-    // Account for calorie banking on binge days
-    let adjustedGoal = dailyGoal;
-    const parts = dateKey.split('-').map(Number);
-    const dayDate = new Date(parts[0], parts[1] - 1, parts[2]);
-    if (s.weekendBinge && s.weekendBinge.enabled && s.weekendBinge.days.includes(dayDate.getDay())) {
-      const banking = getBankedCalories();
-      adjustedGoal = dailyGoal + banking.perDay;
-    }
-
     const multiplier = level === 'under' ? 0.8 : level === 'over' ? 1.3 : 1.0;
-    const cal = Math.round(adjustedGoal * multiplier);
+    const cal = Math.round(dailyGoal * multiplier);
 
     // Estimate macros proportionally from macro goals
     const macroTotal = (s.macroP || 0) + (s.macroC || 0) + (s.macroF || 0);
