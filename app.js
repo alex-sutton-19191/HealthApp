@@ -117,6 +117,8 @@
 
   let viewYear  = new Date().getFullYear();
   let viewMonth = new Date().getMonth();
+  let viewDay   = new Date().getDate();
+  let calView   = 'day'; // 'day' | 'week' | 'month'
   let modalKey  = null;
   let calcMode  = 'weight';
 
@@ -1576,6 +1578,218 @@ Round all numbers to whole integers. Use your best judgment.`
     if (viewMonth > 11) { viewMonth = 0; viewYear++; }
     if (viewMonth < 0)  { viewMonth = 11; viewYear--; }
     renderCalendar();
+  }
+
+  /* ── CALENDAR VIEW SWITCHING ── */
+  function showCalInfo() {
+    const btn = document.getElementById('calInfoBtn');
+    const tips = {
+      day: ['Day View', 'See everything you logged for a single day — meals, calories, and macros. Use the arrows to move between days. Tap <b>Edit Day</b> to add meals or notes.'],
+      week: ['Week View', 'Your week at a glance with daily macro breakdowns. Color-coded by your calorie goal: <b>Green</b> = on target, <b>Yellow</b> = slightly over, <b>Red</b> = over TDEE. Tap any day to see its details.'],
+      month: ['Month View', 'Color-coded calendar of your logging history. <b>Green</b> = at or under your daily goal. <b>Red</b> = over your goal. <b>Yellow</b> = between goal and TDEE. <b>Purple dot</b> = has a note. Tap any day to see details, edit meals, or add notes.']
+    };
+    const [title, text] = tips[calView] || tips.day;
+    showInfo(btn, title, text);
+  }
+
+  function setCalView(view) {
+    calView = view;
+    document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+    document.getElementById('calDayView').style.display  = view === 'day'   ? '' : 'none';
+    document.getElementById('calWeekView').style.display  = view === 'week'  ? '' : 'none';
+    document.getElementById('calMonthView').style.display = view === 'month' ? '' : 'none';
+    renderCalendarView();
+  }
+
+  function renderCalendarView() {
+    if (calView === 'day')   renderDayView();
+    else if (calView === 'week') renderWeekView();
+    else renderCalendar();
+  }
+
+  function calNavPrev() {
+    if (calView === 'day') {
+      const d = new Date(viewYear, viewMonth, viewDay - 1);
+      viewYear = d.getFullYear(); viewMonth = d.getMonth(); viewDay = d.getDate();
+      renderDayView();
+    } else if (calView === 'week') {
+      const d = new Date(viewYear, viewMonth, viewDay - 7);
+      viewYear = d.getFullYear(); viewMonth = d.getMonth(); viewDay = d.getDate();
+      renderWeekView();
+    } else {
+      changeMonth(-1);
+    }
+  }
+
+  function calNavNext() {
+    if (calView === 'day') {
+      const d = new Date(viewYear, viewMonth, viewDay + 1);
+      viewYear = d.getFullYear(); viewMonth = d.getMonth(); viewDay = d.getDate();
+      renderDayView();
+    } else if (calView === 'week') {
+      const d = new Date(viewYear, viewMonth, viewDay + 7);
+      viewYear = d.getFullYear(); viewMonth = d.getMonth(); viewDay = d.getDate();
+      renderWeekView();
+    } else {
+      changeMonth(1);
+    }
+  }
+
+  /* ── DAY VIEW ── */
+  function renderDayView() {
+    const key = makeKey(viewYear, viewMonth, viewDay);
+    const data = getData();
+    const meals = ls(MEALS_KEY, {});
+    const macros = ls(MACROS_KEY, {});
+    const notes = ls(NOTES_KEY, {});
+    const refeed = ls(REFEED_KEY, {});
+    const s = getSettings();
+    const dayMeals = meals[key] || [];
+    const totalCal = data[key] || 0;
+    const mac = macros[key] || {};
+    const today = new Date();
+    const isToday = today.getFullYear() === viewYear && today.getMonth() === viewMonth && today.getDate() === viewDay;
+
+    // Update nav title
+    const dateObj = new Date(viewYear, viewMonth, viewDay);
+    const dayName = DAYS_LONG[dateObj.getDay()];
+    const navLabel = isToday ? 'Today' : `${dayName}, ${MONTHS[viewMonth]} ${viewDay}`;
+    document.getElementById('calMonth').textContent = navLabel;
+
+    const el = document.getElementById('calDayView');
+    let html = '';
+
+    // Day summary
+    if (totalCal > 0) {
+      const dayColor = colorFor(totalCal, !!refeed[key]);
+      const colorHex = { green: 'var(--green)', yellow: 'var(--yellow)', red: 'var(--red)', refeed: '#a5b4fc' }[dayColor] || 'var(--text)';
+      const macStr = (mac.p || mac.c || mac.f)
+        ? `<div class="cal-day-macros">P <span>${mac.p || 0}g</span> · C <span>${mac.c || 0}g</span> · F <span>${mac.f || 0}g</span></div>`
+        : '';
+      const goalText = s.green ? `Goal: ${s.green.toLocaleString()} cal` : '';
+      html += `<div class="cal-day-summary">
+        <div class="cal-day-total" style="color:${colorHex}">${totalCal.toLocaleString()} <span style="font-size:0.75rem;font-weight:500;color:var(--muted)">cal</span></div>
+        ${macStr}
+        ${goalText ? `<div class="cal-day-goal">${goalText}</div>` : ''}
+      </div>`;
+    } else {
+      html += `<div class="cal-day-summary"><div class="cal-day-empty">No meals logged${isToday ? ' yet today' : ''}</div></div>`;
+    }
+
+    // Meals list
+    if (dayMeals.length > 0) {
+      html += '<div class="cal-day-meals">';
+      dayMeals.forEach((meal, i) => {
+        const macLine = (meal.p || meal.c || meal.f)
+          ? `<div class="cal-day-meal-macros">P ${meal.p || 0}g · C ${meal.c || 0}g · F ${meal.f || 0}g</div>`
+          : '';
+        html += `<div class="cal-day-meal" onclick="openModal(${viewYear},${viewMonth},${viewDay})">
+          <div style="flex:1;min-width:0">
+            <div class="cal-day-meal-name">${escHtml(meal.name)}</div>
+            ${macLine}
+          </div>
+          <div class="cal-day-meal-cal">${meal.cal.toLocaleString()} cal</div>
+        </div>`;
+      });
+      html += '</div>';
+    } else if (totalCal > 0) {
+      // Legacy data
+      html += `<div class="cal-day-meals"><div class="cal-day-meal" onclick="openModal(${viewYear},${viewMonth},${viewDay})">
+        <div style="flex:1"><div class="cal-day-meal-name">Logged total</div><div class="cal-day-meal-macros">Legacy entry (not itemized)</div></div>
+        <div class="cal-day-meal-cal">${totalCal.toLocaleString()} cal</div>
+      </div></div>`;
+    }
+
+    // Note
+    if (notes[key]) {
+      html += `<div class="cal-day-note"><div class="cal-day-note-label">Note</div>${escHtml(notes[key])}</div>`;
+    }
+
+    // Tap to edit hint
+    if (totalCal > 0 || dayMeals.length > 0) {
+      html += `<div style="text-align:center;margin-top:12px"><button class="btn-sm" onclick="openModal(${viewYear},${viewMonth},${viewDay})" style="font-size:0.8rem">Edit Day</button></div>`;
+    } else {
+      html += `<div style="text-align:center;margin-top:8px"><button class="btn-sm" onclick="openModal(${viewYear},${viewMonth},${viewDay})" style="font-size:0.8rem">Add Meal</button></div>`;
+    }
+
+    el.innerHTML = html;
+  }
+
+  /* ── WEEK VIEW ── */
+  function renderWeekView() {
+    const today = new Date();
+    // Find start of week (Sunday) containing viewDay
+    const current = new Date(viewYear, viewMonth, viewDay);
+    const startOfWeek = new Date(current);
+    startOfWeek.setDate(current.getDate() - current.getDay());
+
+    const data = getData();
+    const meals = ls(MEALS_KEY, {});
+    const macros = ls(MACROS_KEY, {});
+    const refeed = ls(REFEED_KEY, {});
+    const s = getSettings();
+
+    // Nav label
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    const startLabel = `${MONTHS[startOfWeek.getMonth()].slice(0, 3)} ${startOfWeek.getDate()}`;
+    const endLabel = `${MONTHS[endOfWeek.getMonth()].slice(0, 3)} ${endOfWeek.getDate()}, ${endOfWeek.getFullYear()}`;
+    document.getElementById('calMonth').textContent = `${startLabel} – ${endLabel}`;
+
+    const el = document.getElementById('calWeekView');
+    let html = '';
+    let weekCal = 0, weekP = 0, weekC = 0, weekF = 0, daysLogged = 0;
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
+      const key = makeKey(d.getFullYear(), d.getMonth(), d.getDate());
+      const cal = data[key];
+      const mac = macros[key] || {};
+      const isToday = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+      const isRefeed = !!refeed[key];
+      const isPast = d < today && !isToday;
+
+      let colorClass = '';
+      if (cal !== undefined) {
+        colorClass = colorFor(cal, isRefeed);
+        weekCal += cal;
+        weekP += (mac.p || 0); weekC += (mac.c || 0); weekF += (mac.f || 0);
+        daysLogged++;
+      } else if (isPast) {
+        colorClass = 'nodata';
+      }
+
+      const calDisplay = cal !== undefined ? cal.toLocaleString() : '—';
+      const macDisplay = (mac.p || mac.c || mac.f)
+        ? `<div class="cal-week-macros"><span class="wm-p">P ${mac.p || 0}g</span><span class="wm-c">C ${mac.c || 0}g</span><span class="wm-f">F ${mac.f || 0}g</span></div>`
+        : `<div class="cal-week-macros" style="color:var(--muted2)">No macros</div>`;
+
+      html += `<div class="cal-week-day ${colorClass}${isToday ? ' today' : ''}" onclick="viewDayFromWeek(${d.getFullYear()},${d.getMonth()},${d.getDate()})">
+        <div class="cal-week-date">
+          <div class="cal-week-date-name">${DAYS_SHORT[d.getDay()]}</div>
+          <div class="cal-week-date-day">${d.getDate()}</div>
+        </div>
+        ${macDisplay}
+        <div class="cal-week-cal ${colorClass}">${calDisplay}</div>
+      </div>`;
+    }
+
+    // Week summary
+    const avg = daysLogged > 0 ? Math.round(weekCal / daysLogged) : 0;
+    html += `<div class="cal-week-summary">
+      <div class="msbox"><div class="msbox-val">${daysLogged}</div><div class="msbox-lbl">Logged</div></div>
+      <div class="msbox"><div class="msbox-val">${weekCal > 0 ? weekCal.toLocaleString() : '—'}</div><div class="msbox-lbl">Total Cal</div></div>
+      <div class="msbox"><div class="msbox-val">${avg > 0 ? avg.toLocaleString() : '—'}</div><div class="msbox-lbl">Avg Cal</div></div>
+      <div class="msbox"><div class="msbox-val" style="font-size:0.68rem"><span class="wm-p">P${daysLogged?Math.round(weekP/daysLogged):0}</span> <span class="wm-c">C${daysLogged?Math.round(weekC/daysLogged):0}</span> <span class="wm-f">F${daysLogged?Math.round(weekF/daysLogged):0}</span></div><div class="msbox-lbl">Avg Macros</div></div>
+    </div>`;
+
+    el.innerHTML = html;
+  }
+
+  function viewDayFromWeek(y, m, d) {
+    viewYear = y; viewMonth = m; viewDay = d;
+    setCalView('day');
   }
 
   /* ── CALENDAR PAGE LOG (legacy form removed — all logging via + FAB) ── */
@@ -3043,7 +3257,7 @@ Round all numbers to whole integers. Use your best judgment.`
   function refreshAll() {
     renderToday();
     renderRecentStrip();
-    renderCalendar();
+    renderCalendarView();
     updateWeekly();
     updateStatsBar();
     renderCalChart();

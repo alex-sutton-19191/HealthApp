@@ -11,7 +11,7 @@
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=6">
+  <link rel="stylesheet" href="styles.css?v=7">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -120,19 +120,38 @@
     </div>
 
     <div class="card" style="position:relative">
-      <button class="info-btn" onclick="showInfo(this,'Calendar','Color-coded view of your logging history. <b>Green</b> = at or under your daily goal. <b>Red</b> = over your goal. <b>Yellow</b> = refeed day. <b>Purple</b> = notes added. Tap any day to see details, edit meals, or add notes.')" style="position:absolute;top:10px;right:10px;z-index:2">i</button>
-      <div class="cal-nav" style="padding-right:36px">
-        <button onclick="changeMonth(-1)">&#8592;</button>
+      <button class="info-btn" id="calInfoBtn" onclick="showCalInfo()" style="position:absolute;top:10px;right:10px;z-index:2">i</button>
+
+      <!-- View Toggle -->
+      <div class="cal-view-toggle" style="margin-right:36px">
+        <button class="cal-view-btn active" data-view="day" onclick="setCalView('day')">Day</button>
+        <button class="cal-view-btn" data-view="week" onclick="setCalView('week')">Week</button>
+        <button class="cal-view-btn" data-view="month" onclick="setCalView('month')">Month</button>
+      </div>
+
+      <!-- Nav (shared, text updates per view) -->
+      <div class="cal-nav">
+        <button onclick="calNavPrev()">&#8592;</button>
         <span class="cal-month" id="calMonth"></span>
-        <button onclick="changeMonth(1)">&#8594;</button>
+        <button onclick="calNavNext()">&#8594;</button>
       </div>
-      <div class="cal-grid" id="calGrid">
-        <div class="cal-dh">Sun</div><div class="cal-dh">Mon</div><div class="cal-dh">Tue</div>
-        <div class="cal-dh">Wed</div><div class="cal-dh">Thu</div><div class="cal-dh">Fri</div>
-        <div class="cal-dh">Sat</div>
+
+      <!-- Day View -->
+      <div class="cal-day-view" id="calDayView"></div>
+
+      <!-- Week View -->
+      <div class="cal-week-view" id="calWeekView" style="display:none"></div>
+
+      <!-- Month View -->
+      <div class="cal-month-view" id="calMonthView" style="display:none">
+        <div class="cal-grid" id="calGrid">
+          <div class="cal-dh">Sun</div><div class="cal-dh">Mon</div><div class="cal-dh">Tue</div>
+          <div class="cal-dh">Wed</div><div class="cal-dh">Thu</div><div class="cal-dh">Fri</div>
+          <div class="cal-dh">Sat</div>
+        </div>
+        <div class="legend" id="legend"></div>
+        <div class="month-summary" id="monthSummary"></div>
       </div>
-      <div class="legend" id="legend"></div>
-      <div class="month-summary" id="monthSummary"></div>
     </div>
 
     <div class="card">
