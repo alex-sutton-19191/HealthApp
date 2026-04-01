@@ -245,16 +245,16 @@
 
   /* ── RESET DATA ── */
   function confirmResetData() {
-    document.getElementById('resetConfirm').style.display = 'block';
+    document.getElementById('resetOverlay').style.display = 'flex';
   }
   function cancelResetData() {
-    document.getElementById('resetConfirm').style.display = 'none';
+    document.getElementById('resetOverlay').style.display = 'none';
   }
   async function executeResetData() {
     const settings = getSettings();  // Preserve settings
     _cache = { ct_data:{}, ct_macros:{}, ct_notes:{}, ct_refeed:{}, ct_weights:{}, ct_presets:[], ct_settings: settings, ct_calc:{}, ct_photos:{}, ct_meals:{}, ct_tdee:{}, ct_coach:[] };
     await _flushToSupabase();
-    document.getElementById('resetConfirm').style.display = 'none';
+    document.getElementById('resetOverlay').style.display = 'none';
     refreshAll();
   }
 
