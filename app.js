@@ -243,6 +243,21 @@
     showAuthOverlay(true);
   }
 
+  /* ── RESET DATA ── */
+  function confirmResetData() {
+    document.getElementById('resetConfirm').style.display = 'block';
+  }
+  function cancelResetData() {
+    document.getElementById('resetConfirm').style.display = 'none';
+  }
+  async function executeResetData() {
+    const settings = getSettings();  // Preserve settings
+    _cache = { ct_data:{}, ct_macros:{}, ct_notes:{}, ct_refeed:{}, ct_weights:{}, ct_presets:[], ct_settings: settings, ct_calc:{}, ct_photos:{}, ct_meals:{}, ct_tdee:{}, ct_coach:[] };
+    await _flushToSupabase();
+    document.getElementById('resetConfirm').style.display = 'none';
+    refreshAll();
+  }
+
   let _initialized = false;
 
   async function _handleSession(session) {
@@ -1322,15 +1337,17 @@ Round all numbers to whole integers. Use your best judgment.`
     const wStart = new Date(today);
     while (wStart.getDay() !== s.weekStartDay) wStart.setDate(wStart.getDate() - 1);
 
-    let actual = 0, daysLogged = 0, daysElapsed = 0;
+    let actual = 0, daysLogged = 0, daysElapsed = 0, firstLoggedIdx = -1;
     for (let i = 0; i < 7; i++) {
       const d = new Date(wStart); d.setDate(wStart.getDate() + i);
       if (d <= today) daysElapsed++;
       const v = data[makeKey(d.getFullYear(), d.getMonth(), d.getDate())];
-      if (v !== undefined) { actual += v; daysLogged++; }
+      if (v !== undefined) { actual += v; daysLogged++; if (firstLoggedIdx < 0) firstLoggedIdx = i; }
     }
 
-    const expected = Math.round(daysElapsed * (s.weekly / 7));
+    // Only count days from the first logged day onward (not full week if user just started)
+    const activeDays = firstLoggedIdx >= 0 ? Math.min(daysElapsed, daysElapsed - firstLoggedIdx) : daysElapsed;
+    const expected = Math.round(activeDays * (s.weekly / 7));
     document.getElementById('wGoal').textContent     = s.weekly.toLocaleString();
     document.getElementById('wActual').textContent   = actual.toLocaleString();
     document.getElementById('wExpected').textContent = expected.toLocaleString();
