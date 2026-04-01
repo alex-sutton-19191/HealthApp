@@ -856,7 +856,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 .nav-item {
   display: flex; flex-direction: column; align-items: center;
   padding: 10px 0 12px; cursor: pointer; transition: color 0.15s;
-  color: rgba(170,170,170,0.55); font-size: 0.58rem; font-weight: 600;
+  color: rgba(170,170,170,0.85); font-size: 0.58rem; font-weight: 600;
   letter-spacing: 1px; text-transform: uppercase; gap: 5px;
   border: none; background: none; position: relative;
 }
@@ -1182,6 +1182,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 [data-theme="clean"] .add-sheet-header { background: var(--card); }
 [data-theme="clean"] .modal { background: #f0ece5; }
 [data-theme="clean"] .overlay { background: rgba(0,0,0,0.5); }
+[data-theme="clean"] .nav-item { color: rgba(0,0,0,0.45); }
+[data-theme="clean"] .nav-item:hover:not(.active) { color: rgba(0,0,0,0.65); }
 [data-theme="clean"] #authOverlay { background: var(--bg) !important; }
 [data-theme="clean"] .card { box-shadow: 3px 3px 0 rgba(0,0,0,0.08); }
 [data-theme="clean"] .card:hover { box-shadow: 3px 3px 0 rgba(8,145,178,0.15); }
