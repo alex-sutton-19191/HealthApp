@@ -2733,11 +2733,30 @@ Round all numbers to whole integers. Use your best judgment.`
   function recoveryEstimate(dateKey, level) {
     const s = getSettings();
     const dailyGoal = Math.round(s.weekly / 7);
+
+    // Account for calorie banking on binge days
+    let adjustedGoal = dailyGoal;
+    const parts = dateKey.split('-').map(Number);
+    const dayDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (s.weekendBinge && s.weekendBinge.enabled && s.weekendBinge.days.includes(dayDate.getDay())) {
+      const banking = getBankedCalories();
+      adjustedGoal = dailyGoal + banking.perDay;
+    }
+
     const multiplier = level === 'under' ? 0.8 : level === 'over' ? 1.3 : 1.0;
-    const cal = Math.round(dailyGoal * multiplier);
-    _addMeal(dateKey, 'Estimated', cal, 0, 0, 0, { estimated: true });
+    const cal = Math.round(adjustedGoal * multiplier);
+
+    // Estimate macros proportionally from macro goals
+    const macroTotal = (s.macroP || 0) + (s.macroC || 0) + (s.macroF || 0);
+    const ratio = macroTotal > 0 ? cal / ((s.macroP * 4) + (s.macroC * 4) + (s.macroF * 9)) : 0;
+    const p = macroTotal > 0 ? Math.round((s.macroP || 0) * ratio) : 0;
+    const c = macroTotal > 0 ? Math.round((s.macroC || 0) * ratio) : 0;
+    const f = macroTotal > 0 ? Math.round((s.macroF || 0) * ratio) : 0;
+
+    const label = level === 'under' ? 'Under ate' : level === 'over' ? 'Over ate' : 'On track';
+    _addMeal(dateKey, label + ' (est.)', cal, p, c, f, { estimated: true });
     const actions = document.getElementById('ra-' + dateKey);
-    actions.innerHTML = `<div style="color:var(--green)">✓ Logged ~${cal.toLocaleString()} cal (${level === 'under' ? 'under' : level === 'over' ? 'over' : 'on track'})</div>`;
+    actions.innerHTML = `<div style="color:var(--green)">✓ Logged ~${cal.toLocaleString()} cal (${label.toLowerCase()})</div>`;
     refreshAll();
   }
 
