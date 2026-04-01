@@ -148,13 +148,21 @@
     el.textContent = msg; el.style.display = msg ? 'block' : 'none';
   }
 
+  window.toggleAuthPw = function() {
+    const inp = document.getElementById('authPassword');
+    const show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    document.getElementById('authPwEyeOff').style.display = show ? 'none' : '';
+    document.getElementById('authPwEye').style.display = show ? '' : 'none';
+  };
+
   async function authSignIn() {
     showAuthError('');
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
     // Demo mode bypass
-    if (email === 'admin' && password === 'admin') { _loadDemoData(); return; }
-    const { error } = await _sb.auth.signInWithPassword({ email, password });
+    if (email.toLowerCase() === 'admin' && password === 'admin') { _loadDemoData(); return; }
+    const { error } = await _sb.auth.signInWithPassword({ email: email.toLowerCase(), password });
     if (error) showAuthError(error.message);
   }
 
@@ -247,7 +255,7 @@
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
     if (password.length < 6) { showAuthError('Password must be at least 6 characters'); return; }
-    const { error } = await _sb.auth.signUp({ email, password });
+    const { error } = await _sb.auth.signUp({ email: email.toLowerCase(), password });
     if (error) showAuthError(error.message);
     else showAuthError('Check your email for a confirmation link!');
   }
