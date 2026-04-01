@@ -25,6 +25,7 @@
   };
   let _currentUser = null;
   let _syncTimer   = null;
+  let _dataLoaded  = false;  // true after _loadFromSupabase completes
 
   async function _loadFromSupabase() {
     if (!_currentUser || !_sb) return;
@@ -38,6 +39,7 @@
       const keys = ['ct_data','ct_macros','ct_notes','ct_refeed','ct_weights','ct_presets','ct_settings','ct_calc','ct_photos','ct_meals','ct_tdee','ct_coach'];
       keys.forEach(k => { if (data[k] !== undefined) _cache[k] = data[k]; });
     }
+    _dataLoaded = true;
     await _migrateLocalStorage();
   }
 
@@ -62,6 +64,7 @@
 
   async function _flushToSupabase() {
     if (!_currentUser || !_sb) return;
+    if (!_dataLoaded) { console.warn('Skipping save — data not loaded yet'); return; }
     const { error } = await _sb.from('user_data').upsert({ id: _currentUser.id, ..._cache }, { onConflict: 'id' });
     if (error) console.error('Save error:', error);
   }
@@ -236,6 +239,7 @@
     _cache = { ct_data:{}, ct_macros:{}, ct_notes:{}, ct_refeed:{}, ct_weights:{}, ct_presets:[], ct_settings:{}, ct_calc:{}, ct_photos:{}, ct_meals:{}, ct_tdee:{}, ct_coach:[] };
     _currentUser = null;
     _initialized = false;  // Reset so init() re-runs on next login
+    _dataLoaded = false;
     showAuthOverlay(true);
   }
 
