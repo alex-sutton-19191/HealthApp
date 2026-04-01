@@ -2703,13 +2703,20 @@ Round all numbers to whole integers. Use your best judgment.`
   function checkMissedDays() {
     const data = getData();
     const today = new Date(); today.setHours(0,0,0,0);
+
+    // Find the earliest logged day — only flag gaps after that date
+    const allDates = Object.keys(data).sort();
+    if (allDates.length === 0) return;  // No data yet — nothing to recover
+    const firstLogged = new Date(allDates[0] + 'T00:00:00');
+
+    const dismissed = JSON.parse(sessionStorage.getItem('blubr_dismissed_days') || '[]');
     const missed = [];
     for (let i = 1; i <= 7; i++) {
       const d = new Date(today); d.setDate(today.getDate() - i);
+      if (d < firstLogged) continue;  // Before user started tracking
       const key = makeKey(d.getFullYear(), d.getMonth(), d.getDate());
-      if (data[key] === undefined) {
-        const dismissed = JSON.parse(sessionStorage.getItem('blubr_dismissed_days') || '[]');
-        if (!dismissed.includes(key)) missed.push({ date: d, key });
+      if (data[key] === undefined && !dismissed.includes(key)) {
+        missed.push({ date: d, key });
       }
     }
     if (missed.length > 0) showRecoveryModal(missed);
