@@ -2330,6 +2330,23 @@ Round all numbers to whole integers. Use your best judgment.`
         <span>F: <strong style="color:var(--text)">${s.macroF}g</strong></span>
       </div>` : ''}
     `;
+
+    // Add goal ETA row if available
+    const eta = _calcGoalETA();
+    if (eta) {
+      const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const dateStr = `${monthNames[eta.eta.getMonth()]} ${eta.eta.getDate()}, ${eta.eta.getFullYear()}`;
+      const timeStr = eta.weeks > 52 ? `${(eta.weeks / 4.33).toFixed(0)} months` : `${eta.weeks} week${eta.weeks !== 1 ? 's' : ''}`;
+      content.innerHTML += `
+        <div style="display:flex;align-items:center;gap:12px;margin-top:14px;padding:12px 14px;background:rgba(0,255,65,0.04);border:1px solid rgba(0,255,65,0.12);border-radius:6px">
+          <div style="font-size:1.6rem">&#127937;</div>
+          <div style="flex:1">
+            <div style="font-size:0.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Estimated Goal Date</div>
+            <div style="font-size:1rem;font-weight:700;color:var(--green)">${dateStr}</div>
+            <div style="font-size:0.72rem;color:var(--muted)">${eta.lbsToLose} lbs to go &middot; ~${timeStr}</div>
+          </div>
+        </div>`;
+    }
   }
 
   /* ── THEME ── */
@@ -2950,6 +2967,50 @@ Round all numbers to whole integers. Use your best judgment.`
 
   function closeRecoveryModal() { document.getElementById('recoveryOverlay').style.display = 'none'; }
 
+  function _calcGoalETA() {
+    const p = ls(CALC_KEY, {});
+    const paceVal = parseInt(p.pace);
+    if (!paceVal || paceVal <= 0) return null; // only for cutting
+    const goalWeightLbs = parseFloat(p.goalWeight);
+    if (!goalWeightLbs) return null;
+
+    // Use latest weigh-in if available, else calculator weight
+    const weights = ls(WEIGHTS_KEY, {});
+    const sortedDates = Object.keys(weights).sort();
+    let currentWeight = parseFloat(p.weight);
+    if (sortedDates.length > 0) currentWeight = weights[sortedDates[sortedDates.length - 1]];
+    if (!currentWeight || currentWeight <= goalWeightLbs) return null;
+
+    const lbsToLose = currentWeight - goalWeightLbs;
+    const lbsPerWeek = (paceVal * 7) / 3500;
+    const weeks = Math.ceil(lbsToLose / lbsPerWeek);
+    const eta = new Date();
+    eta.setDate(eta.getDate() + weeks * 7);
+    return { eta, weeks, currentWeight, goalWeightLbs, lbsToLose: lbsToLose.toFixed(1) };
+  }
+
+  function renderGoalETA() {
+    const card = document.getElementById('goalETACard');
+    if (!card) return;
+    const result = _calcGoalETA();
+    if (!result) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const { eta, weeks, lbsToLose } = result;
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const dateStr = `${monthNames[eta.getMonth()]} ${eta.getDate()}, ${eta.getFullYear()}`;
+    const timeStr = weeks > 52 ? `${(weeks / 4.33).toFixed(0)} months` : `${weeks} week${weeks !== 1 ? 's' : ''}`;
+
+    document.getElementById('goalETAContent').innerHTML = `<div style="display:flex;align-items:center;gap:12px">
+      <div style="font-size:2rem;color:var(--green)">&#127937;</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:0.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Goal ETA</div>
+        <div style="font-size:0.88rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dateStr}</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:2px">${lbsToLose} lbs in ~${timeStr}</div>
+      </div>
+    </div>`;
+  }
+
   function renderCoachCountdown() {
     const s = getSettings();
     const card = document.getElementById('coachCountdownCard');
@@ -2999,6 +3060,7 @@ Round all numbers to whole integers. Use your best judgment.`
     renderEnergyBalance();
     renderGoalWaterfall();
     renderCoachCountdown();
+    renderGoalETA();
   }
 
   /* ── COPY MEAL ── */
