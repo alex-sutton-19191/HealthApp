@@ -97,9 +97,15 @@
       <div id="copyLastMealContent"></div>
     </div>
 
-    <div class="card" id="coachCountdownCard" style="display:none;position:relative">
-      <button class="info-btn" onclick="showInfo(this,'Weekly Coach','AI-powered weekly check-in that reviews your progress and gives personalized advice. Set your preferred check-in day in Settings. The coach analyzes your calorie trends, weight changes, and consistency to help you stay on track.')" style="position:absolute;top:10px;right:10px">i</button>
-      <div id="coachCountdownContent"></div>
+    <div style="display:flex;gap:12px" id="goalCoachRow">
+      <div class="card" id="goalETACard" style="display:none;flex:1;min-width:0;position:relative">
+        <button class="info-btn" onclick="showInfo(this,'Goal ETA','Estimated date to reach your goal weight based on your current weight, goal weight, and weekly deficit pace from the calculator. Uses your most recent weigh-in if available.')" style="position:absolute;top:10px;right:10px">i</button>
+        <div id="goalETAContent"></div>
+      </div>
+      <div class="card" id="coachCountdownCard" style="display:none;flex:1;min-width:0;position:relative">
+        <button class="info-btn" onclick="showInfo(this,'Weekly Coach','AI-powered weekly check-in that reviews your progress and gives personalized advice. Set your preferred check-in day in Settings. The coach analyzes your calorie trends, weight changes, and consistency to help you stay on track.')" style="position:absolute;top:10px;right:10px">i</button>
+        <div id="coachCountdownContent"></div>
+      </div>
     </div>
 
   </div><!-- /page-home -->
@@ -708,7 +714,7 @@
     </div>
   </div>
 
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js');
