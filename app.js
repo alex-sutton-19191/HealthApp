@@ -401,14 +401,24 @@
   }
 
   /* ── CLAUDE API KEY ── */
+  function _getApiKey() {
+    // Prefer synced key from settings, fall back to legacy localStorage
+    const s = getSettings();
+    return s.apiKey || localStorage.getItem('blubr_api_key') || '';
+  }
   function saveApiKey() {
     const k = document.getElementById('sApiKey').value.trim();
+    // Save to synced settings (persists across devices)
+    const s = getSettings();
+    if (k) { s.apiKey = k; } else { delete s.apiKey; }
+    lsSet(SETTINGS_KEY, s);
+    // Also keep localStorage for backward compat
     if (k) localStorage.setItem('blubr_api_key', k);
     else   localStorage.removeItem('blubr_api_key');
   }
   function loadApiKey() {
     const el = document.getElementById('sApiKey');
-    if (el) el.value = localStorage.getItem('blubr_api_key') || '';
+    if (el) el.value = _getApiKey();
   }
   function toggleApiKey() {
     const el  = document.getElementById('sApiKey');
@@ -776,7 +786,7 @@
   }
 
   async function addSheetEstimateMacros() {
-    const apiKey = localStorage.getItem('blubr_api_key');
+    const apiKey = _getApiKey();
     const status = document.getElementById('addAiStatus');
     const btn    = document.getElementById('btnAddAiScan');
 
@@ -2499,7 +2509,7 @@ Round all numbers to whole integers. Use your best judgment.`
     const wStartStr = makeKey(wStart.getFullYear(), wStart.getMonth(), wStart.getDate());
     const hasCheckin = coach.some(c => c.date >= wStartStr);
     if (hasCheckin) return;
-    const apiKey = localStorage.getItem('blubr_api_key');
+    const apiKey = _getApiKey();
     if (!apiKey) return;
     showCoachModal();
   }
@@ -2546,7 +2556,7 @@ Round all numbers to whole integers. Use your best judgment.`
       adaptiveTDEE: tdee, adherence: { daysLogged, daysOnTarget, avgCalories: daysLogged > 0 ? Math.round(totalCal/daysLogged) : 0 }
     };
 
-    const apiKey = localStorage.getItem('blubr_api_key');
+    const apiKey = _getApiKey();
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -2705,7 +2715,7 @@ Round all numbers to whole integers. Use your best judgment.`
     const actions = document.getElementById('ra-' + dateKey);
     actions.innerHTML = '<div style="color:var(--cyan);font-size:0.82rem">Estimating...</div>';
 
-    const apiKey = localStorage.getItem('blubr_api_key');
+    const apiKey = _getApiKey();
     if (!apiKey) { actions.innerHTML = '<div style="color:var(--red)">No API key set</div>'; return; }
 
     try {
@@ -2767,7 +2777,7 @@ Round all numbers to whole integers. Use your best judgment.`
     const card = document.getElementById('coachCountdownCard');
     if (!card) return;
     if (!s.features.coachCountdown) { card.style.display = 'none'; return; }
-    const apiKey = localStorage.getItem('blubr_api_key');
+    const apiKey = _getApiKey();
     if (!apiKey) { card.style.display = 'none'; return; }
     card.style.display = '';
 
