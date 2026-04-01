@@ -91,7 +91,8 @@
       <div id="copyLastMealContent"></div>
     </div>
 
-    <div class="card" id="coachCountdownCard" style="display:none">
+    <div class="card" id="coachCountdownCard" style="display:none;position:relative">
+      <button class="info-btn" onclick="showInfo(this,'Weekly Coach','AI-powered weekly check-in that reviews your progress and gives personalized advice. Set your preferred check-in day in Settings. The coach analyzes your calorie trends, weight changes, and consistency to help you stay on track.')" style="position:absolute;top:10px;right:10px">i</button>
       <div id="coachCountdownContent"></div>
     </div>
 
@@ -107,7 +108,8 @@
     </div>
 
     <div class="card" style="position:relative">
-      <div class="cal-nav">
+      <button class="info-btn" onclick="showInfo(this,'Calendar','Color-coded view of your logging history. <b>Green</b> = at or under your daily goal. <b>Red</b> = over your goal. <b>Yellow</b> = refeed day. <b>Purple</b> = notes added. Tap any day to see details, edit meals, or add notes.')" style="position:absolute;top:10px;right:10px;z-index:2">i</button>
+      <div class="cal-nav" style="padding-right:36px">
         <button onclick="changeMonth(-1)">&#8592;</button>
         <span class="cal-month" id="calMonth"></span>
         <button onclick="changeMonth(1)">&#8594;</button>
@@ -119,7 +121,6 @@
       </div>
       <div class="legend" id="legend"></div>
       <div class="month-summary" id="monthSummary"></div>
-      <div style="text-align:right;margin-top:4px"><button class="info-btn" onclick="showInfo(this,'Calendar','Color-coded view of your logging history. <b>Green</b> = at or under your daily goal. <b>Red</b> = over your goal. <b>Yellow</b> = refeed day. <b>Purple</b> = notes added. Tap any day to see details, edit meals, or add notes.')">i</button></div>
     </div>
 
     <div class="card">
