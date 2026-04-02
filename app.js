@@ -1946,6 +1946,7 @@ Round all numbers to whole integers. Use your best judgment.`
     _saveNow();
     document.getElementById('wtVal').value = '';
     renderWeightChart();
+    renderWeightHistory();
     checkRecalcBanner();
     _scheduleTDEERecalc();
   }
@@ -2030,6 +2031,65 @@ Round all numbers to whole integers. Use your best judgment.`
       html += `<text x="${W-P.r-2}" y="${P.t+12}" text-anchor="end" fill="rgba(139,92,246,0.6)" font-size="10">Trend (EMA)</text>`;
     }
     svg.innerHTML=html;
+  }
+
+  function renderWeightHistory() {
+    const el = document.getElementById('weightHistory');
+    if (!el) return;
+    const weights = ls(WEIGHTS_KEY, {});
+    const entries = Object.entries(weights).sort((a, b) => b[0].localeCompare(a[0]));
+    if (entries.length === 0) { el.innerHTML = ''; return; }
+
+    const metric = isMetric();
+    const show = Math.min(entries.length, 10);
+    let html = '<div style="font-size:0.72rem;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Recent Entries</div>';
+    entries.slice(0, show).forEach(([k, v]) => {
+      const [yr, mo, dy] = k.split('-');
+      const dateStr = `${MONTHS[parseInt(mo) - 1].slice(0, 3)} ${parseInt(dy)}`;
+      const dispW = metric ? (v * 0.453592).toFixed(1) + ' kg' : v + ' lbs';
+      html += `<div class="wt-hist-row" data-key="${k}">
+        <span class="wt-hist-date">${dateStr}</span>
+        <span class="wt-hist-val">${dispW}</span>
+        <button class="wt-hist-btn" onclick="editWeightEntry('${k}', ${v})" title="Edit">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="wt-hist-btn wt-hist-del" onclick="deleteWeightEntry('${k}')" title="Delete">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>`;
+    });
+    if (entries.length > show) {
+      html += `<div style="font-size:0.72rem;color:var(--muted2);text-align:center;margin-top:6px">+ ${entries.length - show} more entries</div>`;
+    }
+    el.innerHTML = html;
+  }
+
+  function editWeightEntry(dateKey, currentVal) {
+    const metric = isMetric();
+    const dispVal = metric ? (currentVal * 0.453592).toFixed(1) : currentVal;
+    const unit = metric ? 'kg' : 'lbs';
+    const newVal = prompt(`Edit weight for ${dateKey} (${unit}):`, dispVal);
+    if (newVal === null) return;
+    const parsed = parseFloat(newVal);
+    if (isNaN(parsed) || parsed <= 0) { showToast('Invalid weight'); return; }
+    const weights = ls(WEIGHTS_KEY, {});
+    weights[dateKey] = metric ? parseFloat((parsed / 0.453592).toFixed(1)) : parsed;
+    lsSet(WEIGHTS_KEY, weights);
+    renderWeightChart();
+    renderWeightHistory();
+    refreshAll();
+    showToast('Weight updated');
+  }
+
+  function deleteWeightEntry(dateKey) {
+    if (!confirm('Delete weight entry for ' + dateKey + '?')) return;
+    const weights = ls(WEIGHTS_KEY, {});
+    delete weights[dateKey];
+    lsSet(WEIGHTS_KEY, weights);
+    renderWeightChart();
+    renderWeightHistory();
+    refreshAll();
+    showToast('Weight entry deleted');
   }
 
   function renderCalChart() {
@@ -3350,6 +3410,7 @@ Round all numbers to whole integers. Use your best judgment.`
     renderCalChart();
     renderMacroChart();
     renderWeightChart();
+    renderWeightHistory();
     renderPresets();
     renderHistory();
     renderProgressPhotos();

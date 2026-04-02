@@ -707,6 +707,23 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
   background-size: 8px 8px !important;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── WEIGHT HISTORY ── */
+.wt-hist-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.wt-hist-row:last-child { border-bottom: none; }
+.wt-hist-date { font-size: 0.78rem; color: var(--muted); min-width: 55px; }
+.wt-hist-val { font-size: 0.88rem; font-weight: 600; color: var(--text); flex: 1; }
+.wt-hist-btn {
+  background: none; border: 1px solid rgba(255,255,255,0.1); cursor: pointer;
+  color: var(--muted); padding: 4px 6px; display: flex; align-items: center;
+  transition: all 0.15s;
+}
+.wt-hist-btn:hover { color: var(--cyan); border-color: var(--cyan); }
+.wt-hist-del:hover { color: var(--red); border-color: var(--red); }
+
 .auth-logo-wrap {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   margin-bottom: 8px;
