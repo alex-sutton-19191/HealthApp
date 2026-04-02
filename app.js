@@ -986,9 +986,9 @@
     try {
       const content = [];
       if (hasPhoto) {
-        const base64    = await _fileToBase64(photoInput.files[0]);
-        const mediaType = photoInput.files[0].type || 'image/jpeg';
-        content.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } });
+        // Convert to JPEG via canvas — handles HEIC/HEIF/RAW from iPhones
+        const base64 = await _compressImage(photoInput.files[0], 1024, 0.85);
+        content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } });
       }
       content.push({ type: 'text', text:
         `Estimate the macronutrients for this meal${desc ? ': ' + desc : ''}.
