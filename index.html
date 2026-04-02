@@ -175,6 +175,25 @@
     </div>
 
     <div class="card">
+      <div class="card-title">Weight Log <button class="info-btn" onclick="showInfo(this,'Weight Log','Log your weight here to track your progress over time. Weigh yourself at the same time each day (ideally first thing in the morning) for the most consistent results. Daily fluctuations of 1-3 lbs are normal — the trend line in the chart below filters these out.')">i</button></div>
+      <div class="recalc-banner" id="recalcBanner"></div>
+      <div class="weight-row" style="border:2px solid var(--purple);padding:12px;background:rgba(139,92,246,0.04);box-shadow:3px 3px 0 rgba(139,92,246,0.15)">
+        <input type="date" id="wtDate">
+        <input type="number" id="wtVal" placeholder="Weight (lbs)" min="50" max="700" step="0.1" style="font-size:1.1rem;font-weight:600">
+        <button class="btn-log" onclick="logWeight()" style="background:var(--purple);color:#fff;border-color:var(--purple)">Log</button>
+      </div>
+      <div id="weightHistory" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Weight Trend <button class="info-btn" onclick="showInfo(this,'Smoothed Weight Trend','The dots are your actual weigh-ins. The smooth line is an exponential moving average (EMA) that filters out daily fluctuations from water retention, sodium, etc. Focus on the trend line — that\'s your real progress.')">i</button></div>
+      <div class="chart-area">
+        <div class="chart-empty" id="weightEmpty">Log at least 2 weight entries to see your trend.</div>
+        <svg id="weightSvg" viewBox="0 0 800 160" style="display:none"></svg>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-title">Food Presets <button class="info-btn" onclick="showInfo(this,'Food Presets','Save meals you eat often for quick one-tap logging. Create a preset with a name, calories, and macros, then tap it anytime to instantly log it. Long-press or tap the × to delete a preset.')">i</button></div>
       <div class="preset-chips" id="presetChips"></div>
       <div class="preset-add-row">
@@ -204,25 +223,6 @@
       <div class="sbar-box" style="position:relative"><div class="sbar-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div><div><div class="sbar-val" id="sbStreak">0</div><div class="sbar-lbl">Day Streak</div></div><button class="info-btn" onclick="showInfo(this,'Day Streak','How many consecutive days you\'ve logged food. Miss a day and it resets to zero. Keep the streak alive!')" style="position:absolute;top:6px;right:6px">i</button></div>
       <div class="sbar-box" style="position:relative"><div class="sbar-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div><div class="sbar-val" id="sb7Avg">—</div><div class="sbar-lbl">7-Day Avg</div></div><button class="info-btn" onclick="showInfo(this,'7-Day Average','Your average daily calories over the last 7 days. More useful than a single day\'s number for seeing your true intake pattern.')" style="position:absolute;top:6px;right:6px">i</button></div>
       <div class="sbar-box" style="position:relative"><div class="sbar-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><div class="sbar-val" id="sbTotal">0</div><div class="sbar-lbl">Days Logged</div></div><button class="info-btn" onclick="showInfo(this,'Days Logged','Total number of days you\'ve tracked food in the app. Consistency is key!')" style="position:absolute;top:6px;right:6px">i</button></div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Weight Log <button class="info-btn" onclick="showInfo(this,'Weight Log','Log your weight here to track your progress over time. Weigh yourself at the same time each day (ideally first thing in the morning) for the most consistent results. Daily fluctuations of 1-3 lbs are normal — the trend line in the chart below filters these out.')">i</button></div>
-      <div class="recalc-banner" id="recalcBanner"></div>
-      <div class="weight-row" style="border:2px solid var(--purple);padding:12px;background:rgba(139,92,246,0.04);box-shadow:3px 3px 0 rgba(139,92,246,0.15)">
-        <input type="date" id="wtDate">
-        <input type="number" id="wtVal" placeholder="Weight (lbs)" min="50" max="700" step="0.1" style="font-size:1.1rem;font-weight:600">
-        <button class="btn-log" onclick="logWeight()" style="background:var(--purple);color:#fff;border-color:var(--purple)">Log</button>
-      </div>
-      <div id="weightHistory" style="margin-top:12px"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Weight Trend <button class="info-btn" onclick="showInfo(this,'Smoothed Weight Trend','The dots are your actual weigh-ins. The smooth line is an exponential moving average (EMA) that filters out daily fluctuations from water retention, sodium, etc. Focus on the trend line — that\'s your real progress.')">i</button></div>
-      <div class="chart-area">
-        <div class="chart-empty" id="weightEmpty">Log at least 2 weight entries to see your trend.</div>
-        <svg id="weightSvg" viewBox="0 0 800 160" style="display:none"></svg>
-      </div>
     </div>
 
     <div class="card" id="tdeeTrendCard" style="display:none">
@@ -759,7 +759,7 @@
     </div>
   </div>
 
-<script src="app.js?v=19"></script>
+<script src="app.js?v=20"></script>
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js');
