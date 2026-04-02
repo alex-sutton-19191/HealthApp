@@ -550,8 +550,13 @@
       <button class="btn-export" onclick="resetDemoData()" style="border-color:var(--yellow);color:var(--yellow);box-shadow:2px 2px 0 rgba(251,191,36,0.3);width:100%">Reset Demo Data</button>
     </div>
 
+    <div class="card" id="accountInfoCard" style="border-color:rgba(0,212,255,0.2)">
+      <div class="card-title" style="color:var(--cyan)">Account</div>
+      <div id="accountInfoContent" style="font-size:0.82rem;line-height:2;color:var(--muted)"></div>
+    </div>
+
     <div class="card" style="border-color:rgba(239,68,68,0.2)">
-      <div class="card-title" style="color:var(--red)">Account</div>
+      <div class="card-title" style="color:var(--red)">Danger Zone</div>
       <button class="btn-export" onclick="authLogout()" id="settingsLogoutBtn" style="border-color:var(--red);color:var(--red);box-shadow:2px 2px 0 var(--red);width:100%">Log Out</button>
       <button class="btn-export" onclick="confirmResetData()" style="border-color:var(--red);color:var(--red);box-shadow:2px 2px 0 var(--red);width:100%;margin-top:8px">Reset All Data</button>
     </div>
@@ -740,7 +745,7 @@
     </div>
   </div>
 
-<script src="app.js?v=12"></script>
+<script src="app.js?v=13"></script>
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js');

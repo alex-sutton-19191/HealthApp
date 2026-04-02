@@ -644,6 +644,31 @@
     else                        { el.type = 'password'; btn.textContent = 'Show'; }
   }
 
+  function renderAccountInfo() {
+    const card = document.getElementById('accountInfoCard');
+    const el = document.getElementById('accountInfoContent');
+    if (!card || !el) return;
+    if (!_currentUser || _currentUser.id === 'demo') { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const u = _currentUser;
+    const email = u.email || '—';
+    const provider = (u.app_metadata && u.app_metadata.provider) || 'email';
+    const providerLabel = provider === 'google' ? 'Google' : provider === 'email' ? 'Email & Password' : provider;
+    const created = u.created_at ? new Date(u.created_at) : null;
+    const createdStr = created ? created.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+
+    // Count logged days
+    const data = ls('ct_data', {});
+    const daysLogged = Object.keys(data).filter(k => data[k] > 0).length;
+
+    el.innerHTML =
+      `<div style="display:flex;justify-content:space-between"><span style="color:var(--muted2)">Email</span><span style="color:var(--text)">${escHtml(email)}</span></div>` +
+      `<div style="display:flex;justify-content:space-between"><span style="color:var(--muted2)">Sign-in method</span><span style="color:var(--text)">${providerLabel}</span></div>` +
+      `<div style="display:flex;justify-content:space-between"><span style="color:var(--muted2)">Member since</span><span style="color:var(--text)">${createdStr}</span></div>` +
+      `<div style="display:flex;justify-content:space-between"><span style="color:var(--muted2)">Days logged</span><span style="color:var(--text)">${daysLogged}</span></div>`;
+  }
+
   /* ── ADD MENU ── */
   let _addMenuOpen = false;
 
@@ -3461,6 +3486,7 @@ Round all numbers to whole integers. Use your best judgment.`
     loadBingeSettings();
     renderFeatureToggles();
     loadWeekCoachSettings();
+    renderAccountInfo();
     runCalc();
     refreshAll();
     // Show demo reset button if in demo mode
