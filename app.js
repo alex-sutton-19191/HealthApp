@@ -137,6 +137,8 @@
     document.getElementById('authOverlay').style.display   = show ? 'flex' : 'none';
     document.getElementById('appContainer').style.display  = show ? 'none' : 'block';
     document.querySelector('.bottom-nav').style.display    = show ? 'none' : 'grid';
+    // Always reset loading state when showing the overlay
+    if (show) _setAuthLoading(false);
     // hide logout buttons when running in local (no-Supabase) mode
     const logoutBtn      = document.querySelector('.bottom-nav button[onclick="authLogout()"]');
     const settingsLogout = document.getElementById('settingsLogoutBtn');
@@ -384,6 +386,8 @@
         await Promise.all([_loadFromSupabase(), _fetchSharedApiKey()]);
       } catch (e) {
         console.error('Failed to load user data:', e);
+      } finally {
+        _setAuthLoading(false);
       }
       // Check if there was a backup from a previous failed save
       try {
