@@ -275,9 +275,15 @@
     if (!email) { showAuthError('Please enter your email address'); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthError('Please enter a valid email address'); return; }
     if (password.length < 6) { showAuthError('Password must be at least 6 characters'); return; }
-    const { error } = await _sb.auth.signUp({ email: email.toLowerCase(), password });
-    if (error) showAuthError(_friendlyAuthError(error.message));
-    else showAuthError('Check your email for a confirmation link! (Check spam too)', true);
+    const { data, error } = await _sb.auth.signUp({ email: email.toLowerCase(), password });
+    if (error) { showAuthError(_friendlyAuthError(error.message)); return; }
+    // Supabase returns a fake user with no identities if the email already exists
+    // (e.g. from Google OAuth) — detect this and show a helpful message
+    if (data?.user && data.user.identities && data.user.identities.length === 0) {
+      showAuthError('An account with this email already exists. Try signing in with Google or use Forgot password.');
+      return;
+    }
+    showAuthError('Check your email for a confirmation link! (Check spam too)', true);
   }
 
   async function authResetPassword() {
