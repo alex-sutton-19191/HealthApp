@@ -394,7 +394,6 @@
       }
       _currentUser = session.user;
       _sessionHandled = true;
-      _setAuthLoading(true);
       try {
         const _timeout = (ms) => new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms));
         await Promise.race([
@@ -404,7 +403,6 @@
       } catch (e) {
         console.error('Failed to load user data:', e);
       }
-      _setAuthLoading(false);
       // Check if there was a backup from a previous failed save
       try {
         const backup = localStorage.getItem('blubr_cache_backup');
