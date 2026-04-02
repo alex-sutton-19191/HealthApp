@@ -154,15 +154,23 @@
     el.style.color = isSuccess ? 'var(--green)' : 'var(--red)';
   }
 
+  let _authLoadingTimer = null;
   function _setAuthLoading(on) {
     const form = document.getElementById('authForm');
     const spinner = document.getElementById('authSpinner');
+    const retryBtn = document.getElementById('authRetryBtn');
+    if (_authLoadingTimer) { clearTimeout(_authLoadingTimer); _authLoadingTimer = null; }
     if (on) {
       form.style.display = 'none';
       spinner.style.display = 'flex';
+      if (retryBtn) retryBtn.style.display = 'none';
+      _authLoadingTimer = setTimeout(() => {
+        if (retryBtn) retryBtn.style.display = '';
+      }, 5000);
     } else {
       form.style.display = 'flex';
       spinner.style.display = 'none';
+      if (retryBtn) retryBtn.style.display = 'none';
     }
   }
 
@@ -383,12 +391,15 @@
       _sessionHandled = true;
       _setAuthLoading(true);
       try {
-        await Promise.all([_loadFromSupabase(), _fetchSharedApiKey()]);
+        const _timeout = (ms) => new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms));
+        await Promise.race([
+          Promise.all([_loadFromSupabase(), _fetchSharedApiKey()]),
+          _timeout(10000)
+        ]);
       } catch (e) {
         console.error('Failed to load user data:', e);
-      } finally {
-        _setAuthLoading(false);
       }
+      _setAuthLoading(false);
       // Check if there was a backup from a previous failed save
       try {
         const backup = localStorage.getItem('blubr_cache_backup');
