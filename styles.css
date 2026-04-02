@@ -770,6 +770,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
   content: ''; flex: 1; height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
 }
+.auth-link {
+  background: none; border: none; color: var(--cyan); cursor: pointer;
+  font-size: 0.75rem; font-family: 'Outfit', sans-serif; letter-spacing: 0.5px;
+  padding: 2px 0; opacity: 0.8; transition: opacity 0.15s;
+}
+.auth-link:hover { opacity: 1; text-decoration: underline; }
 .auth-footer {
   font-size: 0.62rem; color: var(--muted2); letter-spacing: 1px;
   margin-top: 8px; text-align: center;

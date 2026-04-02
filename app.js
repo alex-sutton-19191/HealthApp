@@ -145,9 +145,11 @@
     const lb = document.getElementById('localModeBanner'); if (lb) lb.style.display = (!_configured && !show) ? 'block' : 'none';
   }
 
-  function showAuthError(msg) {
+  function showAuthError(msg, isSuccess) {
     const el = document.getElementById('authError');
-    el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+    el.textContent = msg;
+    el.style.display = msg ? 'block' : 'none';
+    el.style.color = isSuccess ? 'var(--green)' : 'var(--red)';
   }
 
   window.toggleAuthPw = function() {
@@ -275,7 +277,18 @@
     if (password.length < 6) { showAuthError('Password must be at least 6 characters'); return; }
     const { error } = await _sb.auth.signUp({ email: email.toLowerCase(), password });
     if (error) showAuthError(_friendlyAuthError(error.message));
-    else showAuthError('Check your email for a confirmation link! (Check spam too)');
+    else showAuthError('Check your email for a confirmation link! (Check spam too)', true);
+  }
+
+  async function authResetPassword() {
+    showAuthError('');
+    const email = document.getElementById('authEmail').value.trim();
+    if (!email) { showAuthError('Enter your email address above, then tap Forgot password'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthError('Please enter a valid email address'); return; }
+    const redirectUrl = window.location.origin + window.location.pathname;
+    const { error } = await _sb.auth.resetPasswordForEmail(email.toLowerCase(), { redirectTo: redirectUrl });
+    if (error) showAuthError(_friendlyAuthError(error.message));
+    else showAuthError('Password reset link sent! Check your email (and spam folder)', true);
   }
 
   async function authGoogle() {
@@ -394,7 +407,19 @@
 
     // Handle all auth events including OAuth redirects and token refreshes
     _sb.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT') {
+      if (event === 'PASSWORD_RECOVERY') {
+        // User clicked the password reset link — prompt for new password
+        const newPw = prompt('Enter your new password (min 6 characters):');
+        if (newPw && newPw.length >= 6) {
+          const { error } = await _sb.auth.updateUser({ password: newPw });
+          if (error) alert('Failed to update password: ' + error.message);
+          else alert('Password updated successfully! You are now signed in.');
+        } else if (newPw) {
+          alert('Password must be at least 6 characters');
+        }
+        if (session) await _handleSession(session);
+        return;
+      } else if (event === 'SIGNED_OUT') {
         _currentUser = null;
         _initialized = false;
         _sessionHandled = false;

@@ -11,7 +11,7 @@
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css?v=9">
+  <link rel="stylesheet" href="styles.css?v=10">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -32,8 +32,11 @@
         <svg id="authPwEye" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
     </div>
-    <div id="authError" style="color:var(--red);font-size:0.82rem;min-height:1em;display:none;line-height:1.6;text-align:center"></div>
+    <div id="authError" style="font-size:0.82rem;min-height:1em;display:none;line-height:1.6;text-align:center"></div>
     <button onclick="authSignIn()" class="auth-btn auth-btn-primary">Sign In</button>
+    <div style="text-align:center">
+      <button onclick="authResetPassword()" class="auth-link">Forgot password?</button>
+    </div>
     <button onclick="authSignUp()" class="auth-btn auth-btn-secondary">Create Account</button>
     <div class="auth-divider">OR</div>
     <button onclick="authGoogle()" class="auth-btn auth-btn-google">
@@ -733,7 +736,7 @@
     </div>
   </div>
 
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js');
