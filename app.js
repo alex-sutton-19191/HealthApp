@@ -155,18 +155,23 @@
   }
 
   let _authLoadingTimer = null;
+  let _authLoadingDelayTimer = null;
   function _setAuthLoading(on) {
     const form = document.getElementById('authForm');
     const spinner = document.getElementById('authSpinner');
     const retryBtn = document.getElementById('authRetryBtn');
     if (_authLoadingTimer) { clearTimeout(_authLoadingTimer); _authLoadingTimer = null; }
+    if (_authLoadingDelayTimer) { clearTimeout(_authLoadingDelayTimer); _authLoadingDelayTimer = null; }
     if (on) {
-      form.style.display = 'none';
-      spinner.style.display = 'flex';
-      if (retryBtn) retryBtn.style.display = 'none';
-      _authLoadingTimer = setTimeout(() => {
-        if (retryBtn) retryBtn.style.display = '';
-      }, 5000);
+      // Delay showing spinner by 1s — fast logins skip it entirely
+      _authLoadingDelayTimer = setTimeout(() => {
+        form.style.display = 'none';
+        spinner.style.display = 'flex';
+        if (retryBtn) retryBtn.style.display = 'none';
+        _authLoadingTimer = setTimeout(() => {
+          if (retryBtn) retryBtn.style.display = '';
+        }, 4000);
+      }, 1000);
     } else {
       form.style.display = 'flex';
       spinner.style.display = 'none';
