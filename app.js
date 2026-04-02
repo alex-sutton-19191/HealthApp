@@ -361,6 +361,16 @@
     if (session && session.user) {
       // Always capture the latest access token for beforeunload saves
       _accessToken = session.access_token || '';
+
+      // If transitioning from demo mode to a real account, reset everything
+      if (_currentUser && _currentUser.id === 'demo') {
+        _cache = { ct_data:{}, ct_macros:{}, ct_notes:{}, ct_refeed:{}, ct_weights:{}, ct_presets:[], ct_settings:{}, ct_calc:{}, ct_photos:{}, ct_meals:{}, ct_tdee:{}, ct_coach:[] };
+        _sessionHandled = false;
+        _dataLoaded = false;
+        _initialized = false;
+        _savePending = false;
+      }
+
       // If we already handled this session and data is loaded, just update the user ref
       if (_sessionHandled && _dataLoaded && _currentUser && _currentUser.id === session.user.id) {
         _currentUser = session.user;  // update token but don't reload data
