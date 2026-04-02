@@ -152,6 +152,18 @@
     el.style.color = isSuccess ? 'var(--green)' : 'var(--red)';
   }
 
+  function _setAuthLoading(on) {
+    const form = document.getElementById('authForm');
+    const spinner = document.getElementById('authSpinner');
+    if (on) {
+      form.style.display = 'none';
+      spinner.style.display = 'flex';
+    } else {
+      form.style.display = 'flex';
+      spinner.style.display = 'none';
+    }
+  }
+
   window.toggleAuthPw = function() {
     const inp = document.getElementById('authPassword');
     const show = inp.type === 'password';
@@ -179,8 +191,10 @@
     if (!email) { showAuthError('Please enter your email address'); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthError('Please enter a valid email address'); return; }
     if (!password) { showAuthError('Please enter your password'); return; }
+    _setAuthLoading(true);
     const { error } = await _sb.auth.signInWithPassword({ email: email.toLowerCase(), password });
-    if (error) showAuthError(_friendlyAuthError(error.message));
+    if (error) { _setAuthLoading(false); showAuthError(_friendlyAuthError(error.message)); }
+    // on success, onAuthStateChange will handle the rest and show loading spinner
   }
 
   function _generateDemoData() {
@@ -355,6 +369,7 @@
       }
       _currentUser = session.user;
       _sessionHandled = true;
+      _setAuthLoading(true);
       try {
         await Promise.all([_loadFromSupabase(), _fetchSharedApiKey()]);
       } catch (e) {

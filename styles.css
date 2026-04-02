@@ -706,6 +706,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
     linear-gradient(90deg, var(--grid-v) 1px, transparent 1px) !important;
   background-size: 8px 8px !important;
 }
+@keyframes spin { to { transform: rotate(360deg); } }
 .auth-logo-wrap {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   margin-bottom: 8px;
