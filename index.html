@@ -11,7 +11,7 @@
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=8">
+  <link rel="stylesheet" href="styles.css?v=9">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -24,7 +24,7 @@
     <div class="auth-tagline">EAT · TRACK · REPEAT</div>
   </div>
   <div id="authForm" style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:10px">
-    <input id="authEmail" type="text" inputmode="email" autocomplete="email" placeholder="Email address" class="auth-input">
+    <input id="authEmail" type="email" inputmode="email" autocomplete="email" placeholder="Email address" class="auth-input">
     <div style="position:relative;width:100%">
       <input id="authPassword" type="password" placeholder="Password" class="auth-input" style="padding-right:44px!important">
       <button type="button" onclick="toggleAuthPw()" id="authPwToggle" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted2);font-size:1.1rem;padding:4px;line-height:1" aria-label="Show password">
@@ -733,7 +733,7 @@
     </div>
   </div>
 
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js');

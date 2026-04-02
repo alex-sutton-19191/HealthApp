@@ -158,14 +158,27 @@
     document.getElementById('authPwEye').style.display = show ? '' : 'none';
   };
 
+  function _friendlyAuthError(msg) {
+    const m = msg.toLowerCase();
+    if (m.includes('rate') && m.includes('limit')) return 'Too many attempts — please wait a few minutes and try again';
+    if (m.includes('email rate limit')) return 'Too many sign-up emails sent — please wait a few minutes and try again';
+    if (m.includes('invalid login credentials')) return 'Incorrect email or password';
+    if (m.includes('email not confirmed')) return 'Please check your email and click the confirmation link first';
+    if (m.includes('user already registered')) return 'An account with this email already exists — try signing in instead';
+    return msg;
+  }
+
   async function authSignIn() {
     showAuthError('');
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
     // Demo mode bypass
     if (email.toLowerCase() === 'admin' && password === 'admin') { _loadDemoData(); return; }
+    if (!email) { showAuthError('Please enter your email address'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthError('Please enter a valid email address'); return; }
+    if (!password) { showAuthError('Please enter your password'); return; }
     const { error } = await _sb.auth.signInWithPassword({ email: email.toLowerCase(), password });
-    if (error) showAuthError(error.message);
+    if (error) showAuthError(_friendlyAuthError(error.message));
   }
 
   function _generateDemoData() {
@@ -256,10 +269,12 @@
     showAuthError('');
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
+    if (!email) { showAuthError('Please enter your email address'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthError('Please enter a valid email address'); return; }
     if (password.length < 6) { showAuthError('Password must be at least 6 characters'); return; }
     const { error } = await _sb.auth.signUp({ email: email.toLowerCase(), password });
-    if (error) showAuthError(error.message);
-    else showAuthError('Check your email for a confirmation link!');
+    if (error) showAuthError(_friendlyAuthError(error.message));
+    else showAuthError('Check your email for a confirmation link! (Check spam too)');
   }
 
   async function authGoogle() {
