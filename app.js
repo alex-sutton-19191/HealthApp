@@ -253,6 +253,7 @@
   function _loadDemoData() {
     _generateDemoData();
     _currentUser = { id: 'demo' };
+    _fetchSharedApiKey();  // load shared API key so AI features work in demo
     showAuthOverlay(false);
     _initialized = true;
     init();
