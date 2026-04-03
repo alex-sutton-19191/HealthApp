@@ -27,7 +27,8 @@
   let _syncTimer   = null;
   let _dataLoaded  = false;  // true after _loadFromSupabase completes
   let _savePending = false;  // true when there are unsaved changes in _cache
-  let _saveInFlight = null;  // current save promise (to await before reload)
+  let _saving      = false;  // mutex: true while a save is in-flight
+  let _saveQueued  = false;  // true if a save was requested during an in-flight save
   let _accessToken = '';     // current auth token for beforeunload saves
 
   async function _loadFromSupabase() {
@@ -83,32 +84,45 @@
     _flushToSupabase();
   }
 
-  let _saveRetries = 0;
-  const _MAX_SAVE_RETRIES = 3;
-
   async function _flushToSupabase() {
     if (!_currentUser || !_sb) return;
     if (!_dataLoaded) { console.warn('Skipping save — data not loaded yet'); return; }
-    const payload = { id: _currentUser.id, ..._cache };
-    const promise = _sb.from('user_data').upsert(payload, { onConflict: 'id' });
-    _saveInFlight = promise;
-    const { error } = await promise;
-    _saveInFlight = null;
-    if (error) {
-      console.error('Save error:', error);
-      _saveRetries++;
-      if (_saveRetries <= _MAX_SAVE_RETRIES) {
-        showToast('Couldn\u2019t save \u2014 retrying\u2026', 'error');
-        setTimeout(_flushToSupabase, 2000 * _saveRetries);
+
+    // Mutex: if a save is already in-flight, queue another one so the latest
+    // cache state is always written AFTER the current save finishes.
+    if (_saving) { _saveQueued = true; return; }
+    _saving = true;
+
+    const MAX_RETRIES = 3;
+    let attempt = 0;
+    let success = false;
+
+    while (attempt < MAX_RETRIES && !success) {
+      if (!_currentUser) break;  // user logged out during retry backoff
+      attempt++;
+      // Always snapshot _cache NOW so we send the very latest state
+      const payload = { id: _currentUser.id, ..._cache };
+      const { error } = await _sb.from('user_data').upsert(payload, { onConflict: 'id' });
+      if (!error) {
+        success = true;
+        if (attempt > 1) showToast('Saved successfully');
+        _savePending = false;
+        try { localStorage.removeItem('blubr_cache_backup'); } catch {}
       } else {
-        showToast('Save failed \u2014 your data is backed up locally', 'error');
+        console.error('Save error (attempt ' + attempt + '/' + MAX_RETRIES + '):', error);
+        if (attempt < MAX_RETRIES) {
+          showToast('Couldn\u2019t save \u2014 retrying\u2026', 'error');
+          await new Promise(r => setTimeout(r, 1000 * attempt)); // 1s, 2s backoff
+        }
       }
-    } else {
-      if (_saveRetries > 0) showToast('Saved successfully');
-      _saveRetries = 0;
-      _savePending = false;
-      try { localStorage.removeItem('blubr_cache_backup'); } catch {}
     }
+    if (!success && attempt >= MAX_RETRIES) {
+      showToast('Save failed \u2014 your data is backed up locally', 'error');
+    }
+
+    _saving = false;
+    // If another save was requested while we were busy, run it now with latest data
+    if (_saveQueued) { _saveQueued = false; return _flushToSupabase(); }
   }
 
   /* ── CONSTANTS ── */
@@ -167,25 +181,22 @@
   }
 
   let _authLoadingTimer = null;
-  let _authLoadingDelayTimer = null;
   let _authSafetyTimer = null;
   function _setAuthLoading(on) {
     const form = document.getElementById('authForm');
     const spinner = document.getElementById('authSpinner');
     const retryBtn = document.getElementById('authRetryBtn');
     if (_authLoadingTimer) { clearTimeout(_authLoadingTimer); _authLoadingTimer = null; }
-    if (_authLoadingDelayTimer) { clearTimeout(_authLoadingDelayTimer); _authLoadingDelayTimer = null; }
     if (_authSafetyTimer) { clearTimeout(_authSafetyTimer); _authSafetyTimer = null; }
     if (on) {
-      // Delay showing spinner by 1s — fast logins skip it entirely
-      _authLoadingDelayTimer = setTimeout(() => {
-        form.style.display = 'none';
-        spinner.style.display = 'flex';
-        if (retryBtn) retryBtn.style.display = 'none';
-        _authLoadingTimer = setTimeout(() => {
-          if (retryBtn) retryBtn.style.display = '';
-        }, 4000);
-      }, 1000);
+      // Show spinner immediately — form hides right when user clicks sign in
+      form.style.display = 'none';
+      spinner.style.display = 'flex';
+      if (retryBtn) retryBtn.style.display = 'none';
+      // Show retry button after 4s in case it's slow
+      _authLoadingTimer = setTimeout(() => {
+        if (retryBtn) retryBtn.style.display = '';
+      }, 4000);
       // Hard safety: auto-reset after 10s no matter what
       _authSafetyTimer = setTimeout(() => _setAuthLoading(false), 10000);
     } else {
@@ -361,7 +372,11 @@
     _initialized = false;  // Reset so init() re-runs on next login
     _dataLoaded = false;
     _sessionHandled = false;
+    _sessionLoading = false;
     _savePending = false;
+    _saving = false;
+    _saveQueued = false;
+    _accessToken = '';
     try { localStorage.removeItem('blubr_cache_backup'); } catch {}
     showAuthOverlay(true);
   }
@@ -387,6 +402,7 @@
   let _initialized = false;
 
   let _sessionHandled = false;  // prevent double handling on page load
+  let _sessionLoading = false;  // lock to prevent concurrent _handleSession executions
 
   async function _handleSession(session) {
     if (session && session.user) {
@@ -408,6 +424,9 @@
         showAuthOverlay(false);
         return;
       }
+      // Prevent concurrent _handleSession calls (getSession + onAuthStateChange can race)
+      if (_sessionLoading) return;
+      _sessionLoading = true;
       _currentUser = session.user;
       _sessionHandled = true;
       try {
@@ -415,15 +434,33 @@
       } catch (e) {
         console.error('Failed to load user data:', e);
       }
+      _sessionLoading = false;
       // Check if there was a backup from a previous failed save
       try {
         const backup = localStorage.getItem('blubr_cache_backup');
         if (backup && _dataLoaded) {
           const saved = JSON.parse(backup);
-          // If backup has meals the server doesn't, restore them
+          let restored = false;
+
+          // Restore ALL data types from backup — compare per-key, keep whichever is richer
+          const objectKeys = ['ct_data','ct_macros','ct_notes','ct_refeed','ct_weights','ct_photos','ct_tdee'];
+          objectKeys.forEach(k => {
+            if (saved[k] && typeof saved[k] === 'object') {
+              const current = _cache[k] || {};
+              Object.keys(saved[k]).forEach(day => {
+                if (!(day in current)) {
+                  if (!_cache[k]) _cache[k] = {};
+                  _cache[k][day] = saved[k][day];
+                  restored = true;
+                }
+              });
+            }
+          });
+
+          // Restore meals: keep whichever day has more entries (with validation)
+          const restoredMealDays = new Set();
+          const dateRe = /^\d{4}-\d{2}-\d{2}$/;
           if (saved.ct_meals && typeof saved.ct_meals === 'object' && !Array.isArray(saved.ct_meals)) {
-            let restored = false;
-            const dateRe = /^\d{4}-\d{2}-\d{2}$/;
             Object.keys(saved.ct_meals).forEach(day => {
               if (!dateRe.test(day)) return;
               const backupMeals = saved.ct_meals[day];
@@ -438,24 +475,48 @@
               const currentMeals = (_cache.ct_meals && _cache.ct_meals[day]) || [];
               if (valid.length > currentMeals.length) {
                 _cache.ct_meals[day] = valid;
+                restoredMealDays.add(day);
                 restored = true;
               }
             });
-            if (restored) {
-              // Recalc totals from restored meals
-              Object.keys(_cache.ct_meals).forEach(day => {
-                const meals = _cache.ct_meals[day];
-                if (meals && meals.length > 0) {
-                  _cache.ct_data[day] = meals.reduce((s,m) => s + m.cal, 0);
-                  const p = meals.reduce((s,m) => s + (m.p||0), 0);
-                  const c = meals.reduce((s,m) => s + (m.c||0), 0);
-                  const f = meals.reduce((s,m) => s + (m.f||0), 0);
-                  if (p||c||f) _cache.ct_macros[day] = {p,c,f};
-                }
-              });
-              console.log('Restored meals from local backup');
-              _saveNow();
+          }
+
+          // Restore array data if backup has more entries
+          ['ct_presets', 'ct_coach'].forEach(k => {
+            if (saved[k] && Array.isArray(saved[k])) {
+              const current = _cache[k] || [];
+              if (saved[k].length > current.length) {
+                _cache[k] = saved[k];
+                restored = true;
+              }
             }
+          });
+
+          // Restore settings/calc if server has empty but backup has data
+          ['ct_settings', 'ct_calc'].forEach(k => {
+            if (saved[k] && Object.keys(saved[k]).length > 0) {
+              if (!_cache[k] || Object.keys(_cache[k]).length === 0) {
+                _cache[k] = saved[k];
+                restored = true;
+              }
+            }
+          });
+
+          if (restored) {
+            // Recalc totals only for days whose meals were actually restored
+            // (avoids clobbering legacy "Logged total" days that have ct_data but no ct_meals)
+            restoredMealDays.forEach(day => {
+              const meals = _cache.ct_meals[day];
+              if (meals && meals.length > 0) {
+                _cache.ct_data[day] = meals.reduce((s,m) => s + m.cal, 0);
+                const p = meals.reduce((s,m) => s + (m.p||0), 0);
+                const c = meals.reduce((s,m) => s + (m.c||0), 0);
+                const f = meals.reduce((s,m) => s + (m.f||0), 0);
+                if (p||c||f) _cache.ct_macros[day] = {p,c,f};
+              }
+            });
+            console.log('Restored data from local backup');
+            _saveNow();
           }
           localStorage.removeItem('blubr_cache_backup');
         }
@@ -494,8 +555,12 @@
         _currentUser = null;
         _initialized = false;
         _sessionHandled = false;
+        _sessionLoading = false;
         _dataLoaded = false;
         _savePending = false;
+        _saving = false;
+        _saveQueued = false;
+        _accessToken = '';
         showAuthOverlay(true);
       } else if (event === 'TOKEN_REFRESHED') {
         // Just update the user ref and token, don't reload data
@@ -505,38 +570,44 @@
       }
     });
 
-    // Save on page unload — use sendBeacon for reliability
-    window.addEventListener('beforeunload', () => {
-      if (_savePending && _currentUser && _dataLoaded) {
-        clearTimeout(_syncTimer);
-        // sendBeacon is the only reliable way to send data during page unload
-        const payload = JSON.stringify({ id: _currentUser.id, ..._cache });
-        try {
-          // Use Supabase REST API directly via sendBeacon
-          const url = SUPABASE_URL + '/rest/v1/user_data?on_conflict=id';
-          const blob = new Blob([payload], { type: 'application/json' });
-          // sendBeacon can't set custom headers, so fall back to fetch keepalive
-          fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': SUPABASE_ANON,
-              'Authorization': 'Bearer ' + _accessToken,
-              'Prefer': 'resolution=merge-duplicates'
-            },
-            body: payload,
-            keepalive: true  // ensures request survives page unload
-          }).catch(() => {});
-        } catch {}
-      }
-    });
+    // Build a keepalive-safe payload (strip ct_photos to stay under 64KB limit)
+    function _emergencyPayload() {
+      const slim = { id: _currentUser.id };
+      const keys = ['ct_data','ct_macros','ct_notes','ct_refeed','ct_weights',
+                     'ct_presets','ct_settings','ct_calc','ct_meals','ct_tdee','ct_coach'];
+      keys.forEach(k => { slim[k] = _cache[k]; });
+      // ct_photos omitted — already saved on capture via _saveNow()
+      return JSON.stringify(slim);
+    }
 
-    // Also save on visibility change (covers iOS app switching/minimizing)
+    function _emergencySave() {
+      if (!_savePending || !_currentUser || !_accessToken || !_dataLoaded) return;
+      clearTimeout(_syncTimer);
+      try {
+        const url = SUPABASE_URL + '/rest/v1/user_data?on_conflict=id';
+        const body = _emergencyPayload();
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON,
+            'Authorization': 'Bearer ' + _accessToken,
+            'Prefer': 'resolution=merge-duplicates'
+          },
+          body: body,
+          keepalive: true  // survives page unload / tab freeze
+        }).catch(() => {});
+      } catch {}
+    }
+
+    // Save on page unload — keepalive fetch is the only reliable option here
+    window.addEventListener('beforeunload', _emergencySave);
+
+    // Also save on visibility change (covers iOS app switching / minimizing).
+    // On mobile, visibilitychange → hidden is often the LAST event before the OS
+    // kills the tab, so we must use keepalive fetch here too (not async Supabase client).
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden' && _savePending && _dataLoaded) {
-        clearTimeout(_syncTimer);
-        _flushToSupabase();
-      }
+      if (document.visibilityState === 'hidden') _emergencySave();
     });
   } else {
     // Supabase not configured yet — run in local mode (localStorage), skip auth overlay
