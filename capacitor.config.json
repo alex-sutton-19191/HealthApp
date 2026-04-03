@@ -1,0 +1,13 @@
+{
+  "appId": "com.blubr.app",
+  "appName": "BLUBR",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "automatic",
+    "allowsLinkPreview": false,
+    "scheme": "BLUBR"
+  },
+  "server": {
+    "iosScheme": "capacitor"
+  }
+}

@@ -21,5 +21,10 @@ id_ed25519
 *.swp
 *~
 
-# Node (in case dependencies are added later)
+# Node
 node_modules/
+
+# Capacitor iOS build artifacts
+ios/App/Pods/
+ios/App/App/public/
+ios/App/output/
