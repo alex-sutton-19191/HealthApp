@@ -176,25 +176,22 @@
   }
 
   let _authLoadingTimer = null;
-  let _authLoadingDelayTimer = null;
   let _authSafetyTimer = null;
   function _setAuthLoading(on) {
     const form = document.getElementById('authForm');
     const spinner = document.getElementById('authSpinner');
     const retryBtn = document.getElementById('authRetryBtn');
     if (_authLoadingTimer) { clearTimeout(_authLoadingTimer); _authLoadingTimer = null; }
-    if (_authLoadingDelayTimer) { clearTimeout(_authLoadingDelayTimer); _authLoadingDelayTimer = null; }
     if (_authSafetyTimer) { clearTimeout(_authSafetyTimer); _authSafetyTimer = null; }
     if (on) {
-      // Delay showing spinner by 1s — fast logins skip it entirely
-      _authLoadingDelayTimer = setTimeout(() => {
-        form.style.display = 'none';
-        spinner.style.display = 'flex';
-        if (retryBtn) retryBtn.style.display = 'none';
-        _authLoadingTimer = setTimeout(() => {
-          if (retryBtn) retryBtn.style.display = '';
-        }, 4000);
-      }, 1000);
+      // Show spinner immediately — form hides right when user clicks sign in
+      form.style.display = 'none';
+      spinner.style.display = 'flex';
+      if (retryBtn) retryBtn.style.display = 'none';
+      // Show retry button after 4s in case it's slow
+      _authLoadingTimer = setTimeout(() => {
+        if (retryBtn) retryBtn.style.display = '';
+      }, 4000);
       // Hard safety: auto-reset after 10s no matter what
       _authSafetyTimer = setTimeout(() => _setAuthLoading(false), 10000);
     } else {
