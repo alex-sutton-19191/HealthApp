@@ -138,6 +138,8 @@
 
   let viewYear  = new Date().getFullYear();
   let viewMonth = new Date().getMonth();
+  let viewDay   = new Date().getDate();
+  let calView   = 'day'; // 'day' | 'week' | 'month'
   let modalKey  = null;
   let calcMode  = 'weight';
 
@@ -156,6 +158,8 @@
     document.getElementById('authOverlay').style.display   = show ? 'flex' : 'none';
     document.getElementById('appContainer').style.display  = show ? 'none' : 'block';
     document.querySelector('.bottom-nav').style.display    = show ? 'none' : 'grid';
+    // Always reset loading state when showing the overlay
+    if (show) _setAuthLoading(false);
     // hide logout buttons when running in local (no-Supabase) mode
     const logoutBtn      = document.querySelector('.bottom-nav button[onclick="authLogout()"]');
     const settingsLogout = document.getElementById('settingsLogoutBtn');
@@ -164,9 +168,40 @@
     const lb = document.getElementById('localModeBanner'); if (lb) lb.style.display = (!_configured && !show) ? 'block' : 'none';
   }
 
-  function showAuthError(msg) {
+  function showAuthError(msg, isSuccess) {
     const el = document.getElementById('authError');
-    el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+    el.textContent = msg;
+    el.style.display = msg ? 'block' : 'none';
+    el.style.color = isSuccess ? 'var(--green)' : 'var(--red)';
+  }
+
+  let _authLoadingTimer = null;
+  let _authLoadingDelayTimer = null;
+  let _authSafetyTimer = null;
+  function _setAuthLoading(on) {
+    const form = document.getElementById('authForm');
+    const spinner = document.getElementById('authSpinner');
+    const retryBtn = document.getElementById('authRetryBtn');
+    if (_authLoadingTimer) { clearTimeout(_authLoadingTimer); _authLoadingTimer = null; }
+    if (_authLoadingDelayTimer) { clearTimeout(_authLoadingDelayTimer); _authLoadingDelayTimer = null; }
+    if (_authSafetyTimer) { clearTimeout(_authSafetyTimer); _authSafetyTimer = null; }
+    if (on) {
+      // Delay showing spinner by 1s — fast logins skip it entirely
+      _authLoadingDelayTimer = setTimeout(() => {
+        form.style.display = 'none';
+        spinner.style.display = 'flex';
+        if (retryBtn) retryBtn.style.display = 'none';
+        _authLoadingTimer = setTimeout(() => {
+          if (retryBtn) retryBtn.style.display = '';
+        }, 4000);
+      }, 1000);
+      // Hard safety: auto-reset after 10s no matter what
+      _authSafetyTimer = setTimeout(() => _setAuthLoading(false), 10000);
+    } else {
+      form.style.display = 'flex';
+      spinner.style.display = 'none';
+      if (retryBtn) retryBtn.style.display = 'none';
+    }
   }
 
   window.toggleAuthPw = function() {
@@ -177,14 +212,29 @@
     document.getElementById('authPwEye').style.display = show ? '' : 'none';
   };
 
+  function _friendlyAuthError(msg) {
+    const m = msg.toLowerCase();
+    if (m.includes('rate') && m.includes('limit')) return 'Too many attempts — please wait a few minutes and try again';
+    if (m.includes('email rate limit')) return 'Too many sign-up emails sent — please wait a few minutes and try again';
+    if (m.includes('invalid login credentials')) return 'Incorrect email or password';
+    if (m.includes('email not confirmed')) return 'Please check your email and click the confirmation link first';
+    if (m.includes('user already registered')) return 'An account with this email already exists — try signing in instead';
+    return msg;
+  }
+
   async function authSignIn() {
     showAuthError('');
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
     // Demo mode bypass
     if (email.toLowerCase() === 'admin' && password === 'admin') { _loadDemoData(); return; }
+    if (!email) { showAuthError('Please enter your email address'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthError('Please enter a valid email address'); return; }
+    if (!password) { showAuthError('Please enter your password'); return; }
+    _setAuthLoading(true);
     const { error } = await _sb.auth.signInWithPassword({ email: email.toLowerCase(), password });
-    if (error) showAuthError(error.message);
+    if (error) { _setAuthLoading(false); showAuthError(_friendlyAuthError(error.message)); }
+    // on success, onAuthStateChange will handle the rest and show loading spinner
   }
 
   function _generateDemoData() {
@@ -259,6 +309,7 @@
   function _loadDemoData() {
     _generateDemoData();
     _currentUser = { id: 'demo' };
+    _fetchSharedApiKey();  // load shared API key so AI features work in demo
     showAuthOverlay(false);
     _initialized = true;
     init();
@@ -275,10 +326,29 @@
     showAuthError('');
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
+    if (!email) { showAuthError('Please enter your email address'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthError('Please enter a valid email address'); return; }
     if (password.length < 6) { showAuthError('Password must be at least 6 characters'); return; }
-    const { error } = await _sb.auth.signUp({ email: email.toLowerCase(), password });
-    if (error) showAuthError(error.message);
-    else showAuthError('Check your email for a confirmation link!');
+    const { data, error } = await _sb.auth.signUp({ email: email.toLowerCase(), password });
+    if (error) { showAuthError(_friendlyAuthError(error.message)); return; }
+    // Supabase returns a fake user with no identities if the email already exists
+    // (e.g. from Google OAuth) — detect this and show a helpful message
+    if (data?.user && data.user.identities && data.user.identities.length === 0) {
+      showAuthError('An account with this email already exists. Try signing in with Google or use Forgot password.');
+      return;
+    }
+    showAuthError('Check your email for a confirmation link! (Check spam too)', true);
+  }
+
+  async function authResetPassword() {
+    showAuthError('');
+    const email = document.getElementById('authEmail').value.trim();
+    if (!email) { showAuthError('Enter your email address above, then tap Forgot password'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthError('Please enter a valid email address'); return; }
+    const redirectUrl = window.location.origin + window.location.pathname;
+    const { error } = await _sb.auth.resetPasswordForEmail(email.toLowerCase(), { redirectTo: redirectUrl });
+    if (error) showAuthError(_friendlyAuthError(error.message));
+    else showAuthError('Password reset link sent! Check your email (and spam folder)', true);
   }
 
   async function authGoogle() {
@@ -336,6 +406,16 @@
     if (session && session.user) {
       // Always capture the latest access token for beforeunload saves
       _accessToken = session.access_token || '';
+
+      // If transitioning from demo mode to a real account, reset everything
+      if (_currentUser && _currentUser.id === 'demo') {
+        _cache = { ct_data:{}, ct_macros:{}, ct_notes:{}, ct_refeed:{}, ct_weights:{}, ct_presets:[], ct_settings:{}, ct_calc:{}, ct_photos:{}, ct_meals:{}, ct_tdee:{}, ct_coach:[] };
+        _sessionHandled = false;
+        _dataLoaded = false;
+        _initialized = false;
+        _savePending = false;
+      }
+
       // If we already handled this session and data is loaded, just update the user ref
       if (_sessionHandled && _dataLoaded && _currentUser && _currentUser.id === session.user.id) {
         _currentUser = session.user;  // update token but don't reload data
@@ -447,7 +527,19 @@
 
     // Handle all auth events including OAuth redirects and token refreshes
     _sb.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT') {
+      if (event === 'PASSWORD_RECOVERY') {
+        // User clicked the password reset link — prompt for new password
+        const newPw = prompt('Enter your new password (min 6 characters):');
+        if (newPw && newPw.length >= 6) {
+          const { error } = await _sb.auth.updateUser({ password: newPw });
+          if (error) alert('Failed to update password: ' + error.message);
+          else alert('Password updated successfully! You are now signed in.');
+        } else if (newPw) {
+          alert('Password must be at least 6 characters');
+        }
+        if (session) await _handleSession(session);
+        return;
+      } else if (event === 'SIGNED_OUT') {
         _currentUser = null;
         _initialized = false;
         _sessionHandled = false;
@@ -477,7 +569,7 @@
     }
 
     function _emergencySave() {
-      if (!_savePending || !_currentUser || !_accessToken) return;
+      if (!_savePending || !_currentUser || !_accessToken || !_dataLoaded) return;
       clearTimeout(_syncTimer);
       try {
         const url = SUPABASE_URL + '/rest/v1/user_data?on_conflict=id';
@@ -659,6 +751,31 @@
     const btn = document.getElementById('btnShowKey');
     if (el.type === 'password') { el.type = 'text';     btn.textContent = 'Hide'; }
     else                        { el.type = 'password'; btn.textContent = 'Show'; }
+  }
+
+  function renderAccountInfo() {
+    const card = document.getElementById('accountInfoCard');
+    const el = document.getElementById('accountInfoContent');
+    if (!card || !el) return;
+    if (!_currentUser || _currentUser.id === 'demo') { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const u = _currentUser;
+    const email = u.email || '—';
+    const provider = (u.app_metadata && u.app_metadata.provider) || 'email';
+    const providerLabel = provider === 'google' ? 'Google' : provider === 'email' ? 'Email & Password' : provider;
+    const created = u.created_at ? new Date(u.created_at) : null;
+    const createdStr = created ? created.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+
+    // Count logged days
+    const data = ls('ct_data', {});
+    const daysLogged = Object.keys(data).filter(k => data[k] > 0).length;
+
+    el.innerHTML =
+      `<div style="display:flex;justify-content:space-between"><span style="color:var(--muted2)">Email</span><span style="color:var(--text)">${escHtml(email)}</span></div>` +
+      `<div style="display:flex;justify-content:space-between"><span style="color:var(--muted2)">Sign-in method</span><span style="color:var(--text)">${providerLabel}</span></div>` +
+      `<div style="display:flex;justify-content:space-between"><span style="color:var(--muted2)">Member since</span><span style="color:var(--text)">${createdStr}</span></div>` +
+      `<div style="display:flex;justify-content:space-between"><span style="color:var(--muted2)">Days logged</span><span style="color:var(--text)">${daysLogged}</span></div>`;
   }
 
   /* ── ADD MENU ── */
@@ -1049,9 +1166,9 @@
     try {
       const content = [];
       if (hasPhoto) {
-        const base64    = await _fileToBase64(photoInput.files[0]);
-        const mediaType = photoInput.files[0].type || 'image/jpeg';
-        content.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } });
+        // Convert to JPEG via canvas — handles HEIC/HEIF/RAW from iPhones
+        const base64 = await _compressImage(photoInput.files[0], 1024, 0.85);
+        content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } });
       }
       content.push({ type: 'text', text:
         `Estimate the macronutrients for this meal${desc ? ': ' + desc : ''}.
@@ -1659,6 +1776,218 @@ Round all numbers to whole integers. Use your best judgment.`
     renderCalendar();
   }
 
+  /* ── CALENDAR VIEW SWITCHING ── */
+  function showCalInfo() {
+    const btn = document.getElementById('calInfoBtn');
+    const tips = {
+      day: ['Day View', 'See everything you logged for a single day — meals, calories, and macros. Use the arrows to move between days. Tap <b>Edit Day</b> to add meals or notes.'],
+      week: ['Week View', 'Your week at a glance with daily macro breakdowns. Color-coded by your calorie goal: <b>Green</b> = on target, <b>Yellow</b> = slightly over, <b>Red</b> = over TDEE. Tap any day to see its details.'],
+      month: ['Month View', 'Color-coded calendar of your logging history. <b>Green</b> = at or under your daily goal. <b>Red</b> = over your goal. <b>Yellow</b> = between goal and TDEE. <b>Purple dot</b> = has a note. Tap any day to see details, edit meals, or add notes.']
+    };
+    const [title, text] = tips[calView] || tips.day;
+    showInfo(btn, title, text);
+  }
+
+  function setCalView(view) {
+    calView = view;
+    document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+    document.getElementById('calDayView').style.display  = view === 'day'   ? '' : 'none';
+    document.getElementById('calWeekView').style.display  = view === 'week'  ? '' : 'none';
+    document.getElementById('calMonthView').style.display = view === 'month' ? '' : 'none';
+    renderCalendarView();
+  }
+
+  function renderCalendarView() {
+    if (calView === 'day')   renderDayView();
+    else if (calView === 'week') renderWeekView();
+    else renderCalendar();
+  }
+
+  function calNavPrev() {
+    if (calView === 'day') {
+      const d = new Date(viewYear, viewMonth, viewDay - 1);
+      viewYear = d.getFullYear(); viewMonth = d.getMonth(); viewDay = d.getDate();
+      renderDayView();
+    } else if (calView === 'week') {
+      const d = new Date(viewYear, viewMonth, viewDay - 7);
+      viewYear = d.getFullYear(); viewMonth = d.getMonth(); viewDay = d.getDate();
+      renderWeekView();
+    } else {
+      changeMonth(-1);
+    }
+  }
+
+  function calNavNext() {
+    if (calView === 'day') {
+      const d = new Date(viewYear, viewMonth, viewDay + 1);
+      viewYear = d.getFullYear(); viewMonth = d.getMonth(); viewDay = d.getDate();
+      renderDayView();
+    } else if (calView === 'week') {
+      const d = new Date(viewYear, viewMonth, viewDay + 7);
+      viewYear = d.getFullYear(); viewMonth = d.getMonth(); viewDay = d.getDate();
+      renderWeekView();
+    } else {
+      changeMonth(1);
+    }
+  }
+
+  /* ── DAY VIEW ── */
+  function renderDayView() {
+    const key = makeKey(viewYear, viewMonth, viewDay);
+    const data = getData();
+    const meals = ls(MEALS_KEY, {});
+    const macros = ls(MACROS_KEY, {});
+    const notes = ls(NOTES_KEY, {});
+    const refeed = ls(REFEED_KEY, {});
+    const s = getSettings();
+    const dayMeals = meals[key] || [];
+    const totalCal = data[key] || 0;
+    const mac = macros[key] || {};
+    const today = new Date();
+    const isToday = today.getFullYear() === viewYear && today.getMonth() === viewMonth && today.getDate() === viewDay;
+
+    // Update nav title
+    const dateObj = new Date(viewYear, viewMonth, viewDay);
+    const dayName = DAYS_LONG[dateObj.getDay()];
+    const navLabel = isToday ? 'Today' : `${dayName}, ${MONTHS[viewMonth]} ${viewDay}`;
+    document.getElementById('calMonth').textContent = navLabel;
+
+    const el = document.getElementById('calDayView');
+    let html = '';
+
+    // Day summary
+    if (totalCal > 0) {
+      const dayColor = colorFor(totalCal, !!refeed[key]);
+      const colorHex = { green: 'var(--green)', yellow: 'var(--yellow)', red: 'var(--red)', refeed: '#a5b4fc' }[dayColor] || 'var(--text)';
+      const macStr = (mac.p || mac.c || mac.f)
+        ? `<div class="cal-day-macros">P <span>${mac.p || 0}g</span> · C <span>${mac.c || 0}g</span> · F <span>${mac.f || 0}g</span></div>`
+        : '';
+      const goalText = s.green ? `Goal: ${s.green.toLocaleString()} cal` : '';
+      html += `<div class="cal-day-summary">
+        <div class="cal-day-total" style="color:${colorHex}">${totalCal.toLocaleString()} <span style="font-size:0.75rem;font-weight:500;color:var(--muted)">cal</span></div>
+        ${macStr}
+        ${goalText ? `<div class="cal-day-goal">${goalText}</div>` : ''}
+      </div>`;
+    } else {
+      html += `<div class="cal-day-summary"><div class="cal-day-empty">No meals logged${isToday ? ' yet today' : ''}</div></div>`;
+    }
+
+    // Meals list
+    if (dayMeals.length > 0) {
+      html += '<div class="cal-day-meals">';
+      dayMeals.forEach((meal, i) => {
+        const macLine = (meal.p || meal.c || meal.f)
+          ? `<div class="cal-day-meal-macros">P ${meal.p || 0}g · C ${meal.c || 0}g · F ${meal.f || 0}g</div>`
+          : '';
+        html += `<div class="cal-day-meal" onclick="openModal(${viewYear},${viewMonth},${viewDay})">
+          <div style="flex:1;min-width:0">
+            <div class="cal-day-meal-name">${escHtml(meal.name)}</div>
+            ${macLine}
+          </div>
+          <div class="cal-day-meal-cal">${meal.cal.toLocaleString()} cal</div>
+        </div>`;
+      });
+      html += '</div>';
+    } else if (totalCal > 0) {
+      // Legacy data
+      html += `<div class="cal-day-meals"><div class="cal-day-meal" onclick="openModal(${viewYear},${viewMonth},${viewDay})">
+        <div style="flex:1"><div class="cal-day-meal-name">Logged total</div><div class="cal-day-meal-macros">Legacy entry (not itemized)</div></div>
+        <div class="cal-day-meal-cal">${totalCal.toLocaleString()} cal</div>
+      </div></div>`;
+    }
+
+    // Note
+    if (notes[key]) {
+      html += `<div class="cal-day-note"><div class="cal-day-note-label">Note</div>${escHtml(notes[key])}</div>`;
+    }
+
+    // Tap to edit hint
+    if (totalCal > 0 || dayMeals.length > 0) {
+      html += `<div style="text-align:center;margin-top:12px"><button class="btn-sm" onclick="openModal(${viewYear},${viewMonth},${viewDay})" style="font-size:0.8rem">Edit Day</button></div>`;
+    } else {
+      html += `<div style="text-align:center;margin-top:8px"><button class="btn-sm" onclick="openModal(${viewYear},${viewMonth},${viewDay})" style="font-size:0.8rem">Add Meal</button></div>`;
+    }
+
+    el.innerHTML = html;
+  }
+
+  /* ── WEEK VIEW ── */
+  function renderWeekView() {
+    const today = new Date();
+    // Find start of week (Sunday) containing viewDay
+    const current = new Date(viewYear, viewMonth, viewDay);
+    const startOfWeek = new Date(current);
+    startOfWeek.setDate(current.getDate() - current.getDay());
+
+    const data = getData();
+    const meals = ls(MEALS_KEY, {});
+    const macros = ls(MACROS_KEY, {});
+    const refeed = ls(REFEED_KEY, {});
+    const s = getSettings();
+
+    // Nav label
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    const startLabel = `${MONTHS[startOfWeek.getMonth()].slice(0, 3)} ${startOfWeek.getDate()}`;
+    const endLabel = `${MONTHS[endOfWeek.getMonth()].slice(0, 3)} ${endOfWeek.getDate()}, ${endOfWeek.getFullYear()}`;
+    document.getElementById('calMonth').textContent = `${startLabel} – ${endLabel}`;
+
+    const el = document.getElementById('calWeekView');
+    let html = '';
+    let weekCal = 0, weekP = 0, weekC = 0, weekF = 0, daysLogged = 0;
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
+      const key = makeKey(d.getFullYear(), d.getMonth(), d.getDate());
+      const cal = data[key];
+      const mac = macros[key] || {};
+      const isToday = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+      const isRefeed = !!refeed[key];
+      const isPast = d < today && !isToday;
+
+      let colorClass = '';
+      if (cal !== undefined) {
+        colorClass = colorFor(cal, isRefeed);
+        weekCal += cal;
+        weekP += (mac.p || 0); weekC += (mac.c || 0); weekF += (mac.f || 0);
+        daysLogged++;
+      } else if (isPast) {
+        colorClass = 'nodata';
+      }
+
+      const calDisplay = cal !== undefined ? cal.toLocaleString() : '—';
+      const macDisplay = (mac.p || mac.c || mac.f)
+        ? `<div class="cal-week-macros"><span class="wm-p">P ${mac.p || 0}g</span><span class="wm-c">C ${mac.c || 0}g</span><span class="wm-f">F ${mac.f || 0}g</span></div>`
+        : `<div class="cal-week-macros" style="color:var(--muted2)">No macros</div>`;
+
+      html += `<div class="cal-week-day ${colorClass}${isToday ? ' today' : ''}" onclick="viewDayFromWeek(${d.getFullYear()},${d.getMonth()},${d.getDate()})">
+        <div class="cal-week-date">
+          <div class="cal-week-date-name">${DAYS_SHORT[d.getDay()]}</div>
+          <div class="cal-week-date-day">${d.getDate()}</div>
+        </div>
+        ${macDisplay}
+        <div class="cal-week-cal ${colorClass}">${calDisplay}</div>
+      </div>`;
+    }
+
+    // Week summary
+    const avg = daysLogged > 0 ? Math.round(weekCal / daysLogged) : 0;
+    html += `<div class="cal-week-summary">
+      <div class="msbox"><div class="msbox-val">${daysLogged}</div><div class="msbox-lbl">Logged</div></div>
+      <div class="msbox"><div class="msbox-val">${weekCal > 0 ? weekCal.toLocaleString() : '—'}</div><div class="msbox-lbl">Total Cal</div></div>
+      <div class="msbox"><div class="msbox-val">${avg > 0 ? avg.toLocaleString() : '—'}</div><div class="msbox-lbl">Avg Cal</div></div>
+      <div class="msbox"><div class="msbox-val" style="font-size:0.68rem"><span class="wm-p">P${daysLogged?Math.round(weekP/daysLogged):0}</span> <span class="wm-c">C${daysLogged?Math.round(weekC/daysLogged):0}</span> <span class="wm-f">F${daysLogged?Math.round(weekF/daysLogged):0}</span></div><div class="msbox-lbl">Avg Macros</div></div>
+    </div>`;
+
+    el.innerHTML = html;
+  }
+
+  function viewDayFromWeek(y, m, d) {
+    viewYear = y; viewMonth = m; viewDay = d;
+    setCalView('day');
+  }
+
   /* ── CALENDAR PAGE LOG (legacy form removed — all logging via + FAB) ── */
 
   /* ── PRESETS ── */
@@ -1726,6 +2055,7 @@ Round all numbers to whole integers. Use your best judgment.`
     _saveNow();
     document.getElementById('wtVal').value = '';
     renderWeightChart();
+    renderWeightHistory();
     checkRecalcBanner();
     _scheduleTDEERecalc();
   }
@@ -1810,6 +2140,65 @@ Round all numbers to whole integers. Use your best judgment.`
       html += `<text x="${W-P.r-2}" y="${P.t+12}" text-anchor="end" fill="rgba(139,92,246,0.6)" font-size="10">Trend (EMA)</text>`;
     }
     svg.innerHTML=html;
+  }
+
+  function renderWeightHistory() {
+    const el = document.getElementById('weightHistory');
+    if (!el) return;
+    const weights = ls(WEIGHTS_KEY, {});
+    const entries = Object.entries(weights).sort((a, b) => b[0].localeCompare(a[0]));
+    if (entries.length === 0) { el.innerHTML = ''; return; }
+
+    const metric = isMetric();
+    const show = Math.min(entries.length, 10);
+    let html = '<div style="font-size:0.72rem;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Recent Entries</div>';
+    entries.slice(0, show).forEach(([k, v]) => {
+      const [yr, mo, dy] = k.split('-');
+      const dateStr = `${MONTHS[parseInt(mo) - 1].slice(0, 3)} ${parseInt(dy)}`;
+      const dispW = metric ? (v * 0.453592).toFixed(1) + ' kg' : v + ' lbs';
+      html += `<div class="wt-hist-row" data-key="${k}">
+        <span class="wt-hist-date">${dateStr}</span>
+        <span class="wt-hist-val">${dispW}</span>
+        <button class="wt-hist-btn" onclick="editWeightEntry('${k}', ${v})" title="Edit">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="wt-hist-btn wt-hist-del" onclick="deleteWeightEntry('${k}')" title="Delete">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>`;
+    });
+    if (entries.length > show) {
+      html += `<div style="font-size:0.72rem;color:var(--muted2);text-align:center;margin-top:6px">+ ${entries.length - show} more entries</div>`;
+    }
+    el.innerHTML = html;
+  }
+
+  function editWeightEntry(dateKey, currentVal) {
+    const metric = isMetric();
+    const dispVal = metric ? (currentVal * 0.453592).toFixed(1) : currentVal;
+    const unit = metric ? 'kg' : 'lbs';
+    const newVal = prompt(`Edit weight for ${dateKey} (${unit}):`, dispVal);
+    if (newVal === null) return;
+    const parsed = parseFloat(newVal);
+    if (isNaN(parsed) || parsed <= 0) { showToast('Invalid weight'); return; }
+    const weights = ls(WEIGHTS_KEY, {});
+    weights[dateKey] = metric ? parseFloat((parsed / 0.453592).toFixed(1)) : parsed;
+    lsSet(WEIGHTS_KEY, weights);
+    renderWeightChart();
+    renderWeightHistory();
+    refreshAll();
+    showToast('Weight updated');
+  }
+
+  function deleteWeightEntry(dateKey) {
+    if (!confirm('Delete weight entry for ' + dateKey + '?')) return;
+    const weights = ls(WEIGHTS_KEY, {});
+    delete weights[dateKey];
+    lsSet(WEIGHTS_KEY, weights);
+    renderWeightChart();
+    renderWeightHistory();
+    refreshAll();
+    showToast('Weight entry deleted');
   }
 
   function renderCalChart() {
@@ -2411,6 +2800,23 @@ Round all numbers to whole integers. Use your best judgment.`
         <span>F: <strong style="color:var(--text)">${s.macroF}g</strong></span>
       </div>` : ''}
     `;
+
+    // Add goal ETA row if available
+    const eta = _calcGoalETA();
+    if (eta) {
+      const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const dateStr = `${monthNames[eta.eta.getMonth()]} ${eta.eta.getDate()}, ${eta.eta.getFullYear()}`;
+      const timeStr = eta.weeks > 52 ? `${(eta.weeks / 4.33).toFixed(0)} months` : `${eta.weeks} week${eta.weeks !== 1 ? 's' : ''}`;
+      content.innerHTML += `
+        <div style="display:flex;align-items:center;gap:12px;margin-top:14px;padding:12px 14px;background:rgba(0,255,65,0.04);border:1px solid rgba(0,255,65,0.12);border-radius:6px">
+          <div style="font-size:1.6rem">&#127937;</div>
+          <div style="flex:1">
+            <div style="font-size:0.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Estimated Goal Date</div>
+            <div style="font-size:1rem;font-weight:700;color:var(--green)">${dateStr}</div>
+            <div style="font-size:0.72rem;color:var(--muted)">${eta.lbsToLose} lbs to go &middot; ~${timeStr}</div>
+          </div>
+        </div>`;
+    }
   }
 
   /* ── THEME ── */
@@ -3031,6 +3437,50 @@ Round all numbers to whole integers. Use your best judgment.`
 
   function closeRecoveryModal() { document.getElementById('recoveryOverlay').style.display = 'none'; }
 
+  function _calcGoalETA() {
+    const p = ls(CALC_KEY, {});
+    const paceVal = parseInt(p.pace);
+    if (!paceVal || paceVal <= 0) return null; // only for cutting
+    const goalWeightLbs = parseFloat(p.goalWeight);
+    if (!goalWeightLbs) return null;
+
+    // Use latest weigh-in if available, else calculator weight
+    const weights = ls(WEIGHTS_KEY, {});
+    const sortedDates = Object.keys(weights).sort();
+    let currentWeight = parseFloat(p.weight);
+    if (sortedDates.length > 0) currentWeight = weights[sortedDates[sortedDates.length - 1]];
+    if (!currentWeight || currentWeight <= goalWeightLbs) return null;
+
+    const lbsToLose = currentWeight - goalWeightLbs;
+    const lbsPerWeek = (paceVal * 7) / 3500;
+    const weeks = Math.ceil(lbsToLose / lbsPerWeek);
+    const eta = new Date();
+    eta.setDate(eta.getDate() + weeks * 7);
+    return { eta, weeks, currentWeight, goalWeightLbs, lbsToLose: lbsToLose.toFixed(1) };
+  }
+
+  function renderGoalETA() {
+    const card = document.getElementById('goalETACard');
+    if (!card) return;
+    const result = _calcGoalETA();
+    if (!result) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const { eta, weeks, lbsToLose } = result;
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const dateStr = `${monthNames[eta.getMonth()]} ${eta.getDate()}, ${eta.getFullYear()}`;
+    const timeStr = weeks > 52 ? `${(weeks / 4.33).toFixed(0)} months` : `${weeks} week${weeks !== 1 ? 's' : ''}`;
+
+    document.getElementById('goalETAContent').innerHTML = `<div style="display:flex;align-items:center;gap:12px">
+      <div style="font-size:2rem;color:var(--green)">&#127937;</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:0.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Goal ETA</div>
+        <div style="font-size:0.88rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dateStr}</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:2px">${lbsToLose} lbs in ~${timeStr}</div>
+      </div>
+    </div>`;
+  }
+
   function renderCoachCountdown() {
     const s = getSettings();
     const card = document.getElementById('coachCountdownCard');
@@ -3063,12 +3513,13 @@ Round all numbers to whole integers. Use your best judgment.`
   function refreshAll() {
     renderToday();
     renderRecentStrip();
-    renderCalendar();
+    renderCalendarView();
     updateWeekly();
     updateStatsBar();
     renderCalChart();
     renderMacroChart();
     renderWeightChart();
+    renderWeightHistory();
     renderPresets();
     renderHistory();
     renderProgressPhotos();
@@ -3080,6 +3531,7 @@ Round all numbers to whole integers. Use your best judgment.`
     renderEnergyBalance();
     renderGoalWaterfall();
     renderCoachCountdown();
+    renderGoalETA();
   }
 
   /* ── COPY MEAL ── */
@@ -3204,6 +3656,7 @@ Round all numbers to whole integers. Use your best judgment.`
     loadBingeSettings();
     renderFeatureToggles();
     loadWeekCoachSettings();
+    renderAccountInfo();
     runCalc();
     refreshAll();
     // Show demo reset button if in demo mode
