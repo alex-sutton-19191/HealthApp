@@ -395,11 +395,7 @@
       _currentUser = session.user;
       _sessionHandled = true;
       try {
-        const _timeout = (ms) => new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms));
-        await Promise.race([
-          Promise.all([_loadFromSupabase(), _fetchSharedApiKey()]),
-          _timeout(10000)
-        ]);
+        await Promise.all([_loadFromSupabase(), _fetchSharedApiKey()]);
       } catch (e) {
         console.error('Failed to load user data:', e);
       }
@@ -485,7 +481,7 @@
 
     // Save on page unload — use sendBeacon for reliability
     window.addEventListener('beforeunload', () => {
-      if (_savePending && _currentUser) {
+      if (_savePending && _currentUser && _dataLoaded) {
         clearTimeout(_syncTimer);
         // sendBeacon is the only reliable way to send data during page unload
         const payload = JSON.stringify({ id: _currentUser.id, ..._cache });
@@ -511,7 +507,7 @@
 
     // Also save on visibility change (covers iOS app switching/minimizing)
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden' && _savePending) {
+      if (document.visibilityState === 'hidden' && _savePending && _dataLoaded) {
         clearTimeout(_syncTimer);
         _flushToSupabase();
       }
