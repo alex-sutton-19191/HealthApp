@@ -83,6 +83,9 @@
     _flushToSupabase();
   }
 
+  let _saveRetries = 0;
+  const _MAX_SAVE_RETRIES = 3;
+
   async function _flushToSupabase() {
     if (!_currentUser || !_sb) return;
     if (!_dataLoaded) { console.warn('Skipping save — data not loaded yet'); return; }
@@ -93,7 +96,16 @@
     _saveInFlight = null;
     if (error) {
       console.error('Save error:', error);
+      _saveRetries++;
+      if (_saveRetries <= _MAX_SAVE_RETRIES) {
+        showToast('Couldn\u2019t save \u2014 retrying\u2026', 'error');
+        setTimeout(_flushToSupabase, 2000 * _saveRetries);
+      } else {
+        showToast('Save failed \u2014 your data is backed up locally', 'error');
+      }
     } else {
+      if (_saveRetries > 0) showToast('Saved successfully');
+      _saveRetries = 0;
       _savePending = false;
       try { localStorage.removeItem('blubr_cache_backup'); } catch {}
     }
@@ -409,13 +421,23 @@
         if (backup && _dataLoaded) {
           const saved = JSON.parse(backup);
           // If backup has meals the server doesn't, restore them
-          if (saved.ct_meals) {
+          if (saved.ct_meals && typeof saved.ct_meals === 'object' && !Array.isArray(saved.ct_meals)) {
             let restored = false;
+            const dateRe = /^\d{4}-\d{2}-\d{2}$/;
             Object.keys(saved.ct_meals).forEach(day => {
+              if (!dateRe.test(day)) return;
               const backupMeals = saved.ct_meals[day];
+              if (!Array.isArray(backupMeals)) return;
+              const valid = backupMeals.map(m => {
+                if (!m || typeof m !== 'object') return null;
+                const cal = Number(m.cal);
+                if (!isFinite(cal) || cal <= 0) return null;
+                return { name: String(m.name || 'Meal'), cal, p: Number(m.p)||0, c: Number(m.c)||0, f: Number(m.f)||0, ts: Number(m.ts)||Date.now() };
+              }).filter(Boolean);
+              if (!valid.length) return;
               const currentMeals = (_cache.ct_meals && _cache.ct_meals[day]) || [];
-              if (backupMeals.length > currentMeals.length) {
-                _cache.ct_meals[day] = backupMeals;
+              if (valid.length > currentMeals.length) {
+                _cache.ct_meals[day] = valid;
                 restored = true;
               }
             });
