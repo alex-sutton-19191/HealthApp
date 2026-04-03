@@ -1,4 +1,4 @@
-const CACHE_NAME = 'blubr-v18';
+const CACHE_NAME = 'blubr-v19';
 const PRECACHE = [
   '/',
   '/index.html',
