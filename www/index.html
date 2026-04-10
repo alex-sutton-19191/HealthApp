@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>BLUBR</title>
+  <meta name="theme-color" content="#070008">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BLUBR">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css?v=16">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<!-- ── AUTH OVERLAY ── -->
+<div id="authOverlay" style="position:fixed;inset:0;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;">
+  <div class="auth-logo-wrap">
+    <h1 style="font-size:2.2rem;color:var(--green);text-shadow:3px 3px 0 #004d15,0 0 20px rgba(0,255,65,0.5);letter-spacing:8px;animation:glitch 4s infinite;margin-bottom:0">BLUBR</h1>
+    <div class="auth-logo-glow"></div>
+    <div class="auth-tagline">EAT · TRACK · REPEAT</div>
+  </div>
+  <div id="authSpinner" style="display:none;flex-direction:column;align-items:center;gap:16px">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+    <div style="color:var(--muted);font-size:0.85rem;letter-spacing:1px">Signing in...</div>
+    <button onclick="location.reload()" style="display:none;margin-top:8px" id="authRetryBtn" class="auth-link">Taking too long? Tap to retry</button>
+  </div>
+  <div id="authForm" style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:10px">
+    <input id="authEmail" type="email" inputmode="email" autocomplete="email" placeholder="Email address" class="auth-input" onkeydown="if(event.key==='Enter')document.getElementById('authPassword').focus()">
+    <div style="position:relative;width:100%">
+      <input id="authPassword" type="password" placeholder="Password" class="auth-input" style="padding-right:44px!important" onkeydown="if(event.key==='Enter')authSignIn()">
+      <button type="button" onclick="toggleAuthPw()" id="authPwToggle" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted2);font-size:1.1rem;padding:4px;line-height:1" aria-label="Show password">
+        <svg id="authPwEyeOff" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><path d="M1 1l22 22"/><path d="M14.12 14.12a3 3 0 11-4.24-4.24"/></svg>
+        <svg id="authPwEye" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+    <div id="authError" style="font-size:0.82rem;min-height:1em;display:none;line-height:1.6;text-align:center"></div>
+    <button onclick="authSignIn()" class="auth-btn auth-btn-primary">Sign In</button>
+    <div style="text-align:center">
+      <button onclick="authResetPassword()" class="auth-link">Forgot password?</button>
+    </div>
+    <button onclick="authSignUp()" class="auth-btn auth-btn-secondary">Create Account</button>
+    <div class="auth-divider">OR</div>
+    <button onclick="authGoogle()" class="auth-btn auth-btn-google">
+      <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+      Sign in with Google
+    </button>
+    <div class="auth-footer">Your data syncs across all your devices</div>
+  </div>
+</div>
+
+<div id="appContainer" class="container" style="display:none">
+
+  <div id="localModeBanner" style="display:none;background:rgba(255,255,0,0.06);border:2px solid var(--yellow);padding:8px 14px;font-size:0.78rem;color:var(--yellow);text-align:center;margin-bottom:4px;line-height:2;">
+    ⚠ Local mode — data is stored on this device only. Configure Supabase for cloud sync &amp; multi-device access.
+  </div>
+
+  <!-- ══════════ PAGE: HOME ══════════ -->
+  <div class="page active" id="page-home">
+
+    <div class="app-header" style="position:relative;text-align:center">
+      <div>
+        <h1>BLUBR</h1>
+        <div class="app-subtitle">EAT. TRACK. REPEAT.</div>
+      </div>
+      <button onclick="showPage('settings')" aria-label="Settings" style="position:absolute;top:0;right:0;background:none;border:none;color:var(--muted);padding:8px;cursor:pointer;transition:color 0.2s" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='var(--muted)'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      <div class="app-date" id="appDate"></div>
+    </div>
+
+    <!-- Today Card -->
+    <div class="card">
+      <div class="card-title">Today <button class="info-btn" onclick="showInfo(this,'Today','Your calorie and macro summary for today. The progress bar shows how close you are to your daily goal. The rings below show protein, carbs, and fat progress toward your macro targets. Tap Edit Today\'s Entry to see individual meals.')">i</button></div>
+      <div id="todayStatus" class="today-status-area"></div>
+    </div>
+
+    <!-- Weekly Progress -->
+    <div class="card">
+      <div class="card-title">This Week <button class="info-btn" onclick="showInfo(this,'This Week','Tracks your weekly calorie progress. <b>Weekly Goal</b> is your total target. <b>Consumed</b> is what you\'ve logged so far. <b>Expected</b> is where you should be based on how many days have passed. If Consumed is under Expected, you\'re ahead of pace.')">i</button></div>
+      <div class="stats-row">
+        <div class="stat-box"><div class="stat-lbl">Weekly Goal</div><div class="stat-val neutral" id="wGoal">—</div></div>
+        <div class="stat-box"><div class="stat-lbl">Consumed</div><div class="stat-val neutral" id="wActual">—</div></div>
+        <div class="stat-box"><div class="stat-lbl">Expected</div><div class="stat-val neutral" id="wExpected">—</div></div>
+      </div>
+      <div class="bar-wrap"><div class="bar-fill" id="barFill" style="width:0%;background:linear-gradient(90deg,#10b981,#34d399)">0%</div></div>
+      <div class="status-banner neutral" id="statusBanner">Log your first day to see weekly progress.</div>
+    </div>
+
+    <div class="card" id="weeklyBudgetCard">
+      <div class="card-title">Weekly Budget <button class="info-btn" onclick="showInfo(this,'Weekly Calorie Budget','See your total calorie budget for the week as a visual bar. If Calorie Banking is enabled, banked calories from under-eating on weekdays are shown as bonus budget on your chosen days.')">i</button></div>
+      <div id="weeklyBudgetContent"></div>
+    </div>
+
+    <!-- Last 7 Days -->
+    <div class="card">
+      <div class="card-title">Last 7 Days <button class="info-btn" onclick="showInfo(this,'Last 7 Days','A quick glance at your recent logging. Green numbers mean you stayed at or under your daily goal, red means you went over. A dot means no data was logged that day. Tap any day to see details.')">i</button></div>
+      <div class="recent-strip" id="recentStrip"></div>
+    </div>
+
+    <div class="card" id="copyLastMealCard" style="display:none">
+      <div id="copyLastMealContent"></div>
+    </div>
+
+    <div style="display:flex;gap:12px" id="goalCoachRow">
+      <div class="card" id="goalETACard" style="display:none;flex:1;min-width:0;position:relative">
+        <button class="info-btn" onclick="showInfo(this,'Goal ETA','Estimated date to reach your goal weight based on your current weight, goal weight, and weekly deficit pace from the calculator. Uses your most recent weigh-in if available.')" style="position:absolute;top:10px;right:10px">i</button>
+        <div id="goalETAContent"></div>
+      </div>
+      <div class="card" id="coachCountdownCard" style="display:none;flex:1;min-width:0;position:relative">
+        <button class="info-btn" onclick="showInfo(this,'Weekly Coach','AI-powered weekly check-in that reviews your progress and gives personalized advice. Set your preferred check-in day in Settings. The coach analyzes your calorie trends, weight changes, and consistency to help you stay on track.')" style="position:absolute;top:10px;right:10px">i</button>
+        <div id="coachCountdownContent"></div>
+      </div>
+    </div>
+
+  </div><!-- /page-home -->
+
+
+  <!-- ══════════ PAGE: CALENDAR ══════════ -->
+  <div class="page" id="page-calendar">
+
+    <div class="page-hdr">
+      <div class="page-eyebrow">BLUBR</div>
+      <h2 class="page-h2">Calendar</h2>
+    </div>
+
+    <div class="card" style="position:relative">
+      <button class="info-btn" id="calInfoBtn" onclick="showCalInfo()" style="position:absolute;top:10px;right:10px;z-index:2">i</button>
+
+      <!-- View Toggle -->
+      <div class="cal-view-toggle" style="margin-right:36px">
+        <button class="cal-view-btn active" data-view="day" onclick="setCalView('day')">Day</button>
+        <button class="cal-view-btn" data-view="week" onclick="setCalView('week')">Week</button>
+        <button class="cal-view-btn" data-view="month" onclick="setCalView('month')">Month</button>
+      </div>
+
+      <!-- Nav (shared, text updates per view) -->
+      <div class="cal-nav">
+        <button onclick="calNavPrev()">&#8592;</button>
+        <span class="cal-month" id="calMonth"></span>
+        <button onclick="calNavNext()">&#8594;</button>
+      </div>
+
+      <!-- Day View -->
+      <div class="cal-day-view" id="calDayView"></div>
+
+      <!-- Week View -->
+      <div class="cal-week-view" id="calWeekView" style="display:none"></div>
+
+      <!-- Month View -->
+      <div class="cal-month-view" id="calMonthView" style="display:none">
+        <div class="cal-grid" id="calGrid">
+          <div class="cal-dh">Sun</div><div class="cal-dh">Mon</div><div class="cal-dh">Tue</div>
+          <div class="cal-dh">Wed</div><div class="cal-dh">Thu</div><div class="cal-dh">Fri</div>
+          <div class="cal-dh">Sat</div>
+        </div>
+        <div class="legend" id="legend"></div>
+        <div class="month-summary" id="monthSummary"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Weight Log <button class="info-btn" onclick="showInfo(this,'Weight Log','Log your weight here to track your progress over time. Weigh yourself at the same time each day (ideally first thing in the morning) for the most consistent results. Daily fluctuations of 1-3 lbs are normal — the trend line in the chart below filters these out.')">i</button></div>
+      <div class="recalc-banner" id="recalcBanner"></div>
+      <div class="weight-row" style="border:2px solid var(--purple);padding:12px;background:rgba(139,92,246,0.04);box-shadow:3px 3px 0 rgba(139,92,246,0.15)">
+        <input type="date" id="wtDate">
+        <input type="number" id="wtVal" placeholder="Weight (lbs)" min="50" max="700" step="0.1" style="font-size:1.1rem;font-weight:600">
+        <button class="btn-log" onclick="logWeight()" style="background:var(--purple);color:#fff;border-color:var(--purple)">Log</button>
+      </div>
+      <div id="weightHistory" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Food Presets <button class="info-btn" onclick="showInfo(this,'Food Presets','Save meals you eat often for quick one-tap logging. Create a preset with a name, calories, and macros, then tap it anytime to instantly log it. Long-press or tap the × to delete a preset.')">i</button></div>
+      <div class="preset-chips" id="presetChips"></div>
+      <div class="preset-add-row">
+        <input type="text" id="pName" placeholder="Name (e.g. My Usual Breakfast)">
+        <input type="number" id="pCal" placeholder="Calories" min="1">
+        <input type="number" id="pPresetP" placeholder="P" min="0">
+        <input type="number" id="pPresetC" placeholder="C" min="0">
+        <input type="number" id="pPresetF" placeholder="F" min="0">
+        <button class="btn-sm accent" onclick="addPreset()">Add</button>
+      </div>
+      <div class="preset-list" id="presetList"></div>
+    </div>
+
+  </div><!-- /page-calendar -->
+
+
+  <!-- ══════════ PAGE: PROGRESS ══════════ -->
+  <div class="page" id="page-progress">
+
+    <div class="page-hdr">
+      <div class="page-eyebrow">BLUBR</div>
+      <h2 class="page-h2">Progress</h2>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+      <div class="sbar-box" style="position:relative"><div class="sbar-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div><div><div class="sbar-val" id="sbStreak">0</div><div class="sbar-lbl">Day Streak</div></div><button class="info-btn" onclick="showInfo(this,'Day Streak','How many consecutive days you\'ve logged food. Miss a day and it resets to zero. Keep the streak alive!')" style="position:absolute;top:6px;right:6px">i</button></div>
+      <div class="sbar-box" style="position:relative"><div class="sbar-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div><div class="sbar-val" id="sb7Avg">—</div><div class="sbar-lbl">7-Day Avg</div></div><button class="info-btn" onclick="showInfo(this,'7-Day Average','Your average daily calories over the last 7 days. More useful than a single day\'s number for seeing your true intake pattern.')" style="position:absolute;top:6px;right:6px">i</button></div>
+      <div class="sbar-box" style="position:relative"><div class="sbar-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><div class="sbar-val" id="sbTotal">0</div><div class="sbar-lbl">Days Logged</div></div><button class="info-btn" onclick="showInfo(this,'Days Logged','Total number of days you\'ve tracked food in the app. Consistency is key!')" style="position:absolute;top:6px;right:6px">i</button></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Weight Trend <button class="info-btn" onclick="showInfo(this,'Smoothed Weight Trend','The dots are your actual weigh-ins. The smooth line is an exponential moving average (EMA) that filters out daily fluctuations from water retention, sodium, etc. Focus on the trend line — that\'s your real progress.')">i</button></div>
+      <div class="chart-area">
+        <div class="chart-empty" id="weightEmpty">Log at least 2 weight entries to see your trend.</div>
+        <svg id="weightSvg" viewBox="0 0 800 160" style="display:none"></svg>
+      </div>
+    </div>
+
+    <div class="card" id="tdeeTrendCard" style="display:none">
+      <div class="card-title">Adaptive TDEE <button class="info-btn" onclick="showInfo(this,'Adaptive TDEE','Your Total Daily Energy Expenditure, calculated from your actual weight changes and calorie intake over time. More accurate than static calculators because it adapts to YOUR body. Needs 14+ days of calorie data and 5+ weight entries to activate.')">i</button></div>
+      <div id="tdeeTrendContent"></div>
+    </div>
+
+    <div class="card" id="energyBalanceCard" style="display:none">
+      <div class="card-title">Energy Balance <button class="info-btn" onclick="showInfo(this,'Energy Balance','Compares your daily calorie intake (cyan line) vs. your adaptive TDEE (purple line) over 60 days. Green shading = deficit (losing weight), red shading = surplus (gaining weight). Great for seeing trends at a glance.')">i</button></div>
+      <div class="chart-area">
+        <svg id="energySvg" viewBox="0 0 800 180"></svg>
+      </div>
+      <div style="display:flex;gap:14px;margin-top:8px;font-size:0.78rem;">
+        <span style="color:#00d4ff">■ Intake</span>
+        <span style="color:#8b5cf6">■ TDEE</span>
+        <span style="color:rgba(16,185,129,0.3)">■ Deficit</span>
+        <span style="color:rgba(239,68,68,0.3)">■ Surplus</span>
+      </div>
+    </div>
+
+    <div class="card" id="goalWaterfallCard" style="display:none">
+      <div class="card-title">Goal Progress <button class="info-btn" onclick="showInfo(this,'Goal Progress Waterfall','Shows daily weight changes relative to your goal. Green bars = weight moved toward your goal, red bars = weight moved away. Uses smoothed weight data to filter out daily fluctuations from water, salt, etc.')">i</button></div>
+      <div class="chart-area">
+        <svg id="waterfallSvg" viewBox="0 0 800 160"></svg>
+      </div>
+      <div style="display:flex;gap:14px;margin-top:8px;font-size:0.78rem;">
+        <span style="color:#34d399">■ Toward goal</span>
+        <span style="color:#f87171">■ Away from goal</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Calorie History — Last 30 Days <button class="info-btn" onclick="showInfo(this,'Calorie History','Your daily calorie intake over the last 30 days. The dashed line shows your daily goal. Look for consistency — steady intake near your target is better than big swings between under- and over-eating.')">i</button></div>
+      <div class="chart-area">
+        <svg id="calSvg" viewBox="0 0 800 150"></svg>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Macro Breakdown — Last 30 Days <button class="info-btn" onclick="showInfo(this,'Macro Breakdown','Your protein, carbs, and fat intake over the last 30 days as stacked bars. Helps you see if your macro ratios are staying consistent and hitting your targets. Protein (pink) is key for muscle retention during a cut.')">i</button></div>
+      <div class="chart-area">
+        <svg id="macroSvg" viewBox="0 0 800 150"></svg>
+      </div>
+      <div style="display:flex;gap:14px;margin-top:8px;font-size:0.78rem;">
+        <span style="color:#f472b6">■ Protein</span>
+        <span style="color:#60a5fa">■ Carbs</span>
+        <span style="color:#fbbf24">■ Fat</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Progress Photos <button class="info-btn" onclick="showInfo(this,'Progress Photos','Take regular photos to visually track your body changes. The scale doesn\'t tell the whole story — you might be losing fat and gaining muscle. Photos are stored with your account and synced across devices.')">i</button></div>
+      <div class="progress-photos-grid" id="progressPhotosGrid">
+        <div class="empty-state" style="grid-column:1/-1">
+          <div class="empty-state-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="24" height="24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+          <div class="empty-state-title">No photos yet</div>
+          <div class="empty-state-sub">Track your transformation with progress photos.</div>
+          <div class="empty-state-cta" onclick="toggleAddMenu()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add a photo
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /page-progress -->
+
+
+  <!-- ══════════ PAGE: HISTORY ══════════ -->
+  <div class="page" id="page-history">
+
+    <div class="page-hdr">
+      <div class="page-eyebrow">BLUBR</div>
+      <h2 class="page-h2">History</h2>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Data Log <button class="info-btn" onclick="showInfo(this,'Data Log','A searchable list of every day you\'ve logged. Use the filter to search by date, notes, or calorie amount. You can type things like >2000 or <1500 to find days above or below a certain amount.')">i</button></div>
+      <input class="history-search" type="text" id="histSearch" placeholder="Filter by date, notes, or calories (e.g. >2000, <1500)…" oninput="renderHistory()">
+      <div class="history-scroll">
+        <div id="historyContent"></div>
+      </div>
+    </div>
+
+  </div><!-- /page-history -->
+
+
+  <!-- ══════════ PAGE: GOALS ══════════ -->
+  <div class="page" id="page-goals">
+
+    <div class="page-hdr">
+      <div class="page-eyebrow">BLUBR</div>
+      <h2 class="page-h2">Goals</h2>
+    </div>
+
+    <!-- Active Goal Summary -->
+    <div class="card" id="goalSummaryCard" style="border-color:var(--green);overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="card-title" style="margin:0">My Goal <button class="info-btn" onclick="showInfo(this,'My Goal','Your active calorie and macro targets. These are set from the calculator below and drive all the tracking throughout the app — daily goals, weekly budget, macro rings, and progress indicators.')">i</button></div>
+        <div id="goalPaceBadge" style="font-size:0.68rem;color:var(--green);background:rgba(16,185,129,0.1);padding:4px 10px;border:1px solid rgba(0,255,65,0.2);letter-spacing:0.5px"></div>
+      </div>
+      <div id="goalSummaryContent" style="margin-top:12px"></div>
+    </div>
+
+    <!-- Goal Calculator -->
+    <div class="card">
+      <div class="card-title">Calorie Goal Calculator <button class="info-btn" onclick="showInfo(this,'Calorie Goal Calculator','Estimates your daily calorie needs based on your stats. <b>By Target Weight</b> calculates a timeline based on your goal weight and desired pace. <b>By Body Fat %</b> sets targets based on body composition. Your TDEE (maintenance calories) is estimated using the Mifflin-St Jeor equation adjusted for activity level.')">i</button></div>
+      <div style="font-size:0.75rem;color:var(--muted);margin:-4px 0 14px;line-height:1.6">Enter your stats to calculate a personalized target. Adjust freely — nothing saves until you tap "Set As My Goal."</div>
+      <div class="mode-toggle">
+        <button id="modeWeightBtn" class="mode-btn active" onclick="setCalcMode('weight')">By Target Weight</button>
+        <button id="modeBFBtn"     class="mode-btn"        onclick="setCalcMode('bf')">By Body Fat %</button>
+      </div>
+      <div class="calc-grid">
+        <div class="calc-item"><label>Sex</label>
+          <select id="cSex" onchange="runCalc()"><option value="male">Male</option><option value="female">Female</option></select>
+        </div>
+        <div class="calc-item"><label>Age</label>
+          <input type="number" id="cAge" placeholder="30" min="10" max="100" oninput="runCalc()">
+        </div>
+        <div class="calc-item"><label>Height</label>
+          <div class="height-row">
+            <input type="number" id="cFt" placeholder="5" min="3" max="8" oninput="runCalc()">
+            <span>ft</span>
+            <input type="number" id="cIn" placeholder="10" min="0" max="11" oninput="runCalc()">
+            <span>in</span>
+          </div>
+        </div>
+        <div class="calc-item"><label>Current Weight (lbs)</label>
+          <input type="number" id="cWeight" placeholder="200" min="50" max="700" oninput="runCalc()">
+        </div>
+        <div class="calc-item"><label>Activity Level</label>
+          <select id="cActivity" onchange="runCalc()">
+            <option value="1.2">Sedentary (desk job)</option>
+            <option value="1.375">Lightly Active (1–3 days/week)</option>
+            <option value="1.55" selected>Moderately Active (3–5 days/week)</option>
+            <option value="1.725">Very Active (6–7 days/week)</option>
+            <option value="1.9">Extremely Active (physical job + training)</option>
+          </select>
+        </div>
+        <div class="calc-item"><label>Goal Pace</label>
+          <select id="cPace" onchange="runCalc()">
+            <option value="-500">Gain 1 lb / week — bulk</option>
+            <option value="-250">Gain 0.5 lb / week — slow bulk</option>
+            <option value="0">Maintain — stay at current weight</option>
+            <option value="250">0.5 lb / week — gentle</option>
+            <option value="500" selected>1 lb / week — recommended</option>
+            <option value="750">1.5 lb / week — aggressive</option>
+            <option value="1000">2 lb / week — extreme</option>
+          </select>
+        </div>
+        <div class="calc-item" id="goalWeightRow"><label>Goal Weight (lbs)</label>
+          <input type="number" id="cGoalWeight" placeholder="180" min="50" max="700" oninput="runCalc()">
+        </div>
+        <div class="calc-item" id="curBFRow" style="display:none"><label>Current Body Fat %</label>
+          <input type="number" id="cCurBF" placeholder="25" min="3" max="70" oninput="runCalc()">
+        </div>
+        <div class="calc-item" id="goalBFRow" style="display:none"><label>Goal Body Fat %</label>
+          <input type="number" id="cGoalBF" placeholder="15" min="3" max="60" oninput="runCalc()">
+        </div>
+      </div>
+
+      <div id="calcResults" style="display:none">
+        <div class="calc-divider"></div>
+        <div class="calc-section-lbl">Estimated Calorie Burn</div>
+        <div class="calc-results-grid">
+          <div class="calc-result-box"><div class="calc-result-lbl">BMR — At Rest</div><div class="calc-result-val" id="rBMR">—</div><div class="calc-result-sub">cal / day if you did nothing</div></div>
+          <div class="calc-result-box"><div class="calc-result-lbl">Activity Burn</div><div class="calc-result-val" id="rActBurn">—</div><div class="calc-result-sub">extra cal from activity</div></div>
+          <div class="calc-result-box"><div class="calc-result-lbl">TDEE / Day</div><div class="calc-result-val" id="rTDEE">—</div><div class="calc-result-sub">total cal burned daily</div></div>
+        </div>
+        <div class="calc-results-grid" style="margin-top:8px">
+          <div class="calc-result-box"><div class="calc-result-lbl">TDEE / Week</div><div class="calc-result-val" id="rTDEEWeek">—</div><div class="calc-result-sub">total cal burned weekly</div></div>
+          <div class="calc-result-box"><div class="calc-result-lbl">BMI</div><div class="calc-result-val" id="rBMI">—</div><div class="calc-result-sub" id="rBMISub"></div></div>
+          <div class="calc-result-box"><div class="calc-result-lbl">Suggested Protein</div><div class="calc-result-val" id="rProtein">—</div><div class="calc-result-sub">grams / day</div></div>
+        </div>
+
+        <div class="calc-section-lbl">Your Calorie Targets</div>
+        <div class="calc-results-grid">
+          <div class="calc-result-box highlight"><div class="calc-result-lbl">Daily Target</div><div class="calc-result-val" id="rTarget">—</div><div class="calc-result-sub" id="rTargetSub">cal / day to lose weight</div></div>
+          <div class="calc-result-box highlight"><div class="calc-result-lbl">Weekly Goal</div><div class="calc-result-val" id="rWeekly">—</div><div class="calc-result-sub">cal / week</div></div>
+          <div class="calc-result-box"><div class="calc-result-lbl">Weekly Deficit</div><div class="calc-result-val" id="rWeeklyDeficit">—</div><div class="calc-result-sub">cal under maintenance / week</div></div>
+        </div>
+
+        <div class="calc-section-lbl" id="bcompLbl" style="display:none">Body Composition</div>
+        <div class="calc-results-grid" id="bcompGrid" style="display:none">
+          <div class="calc-result-box"><div class="calc-result-lbl">Current Body Fat</div><div class="calc-result-val" id="rFatLbs">—</div><div class="calc-result-sub">lbs of fat</div></div>
+          <div class="calc-result-box"><div class="calc-result-lbl">Lean Body Mass</div><div class="calc-result-val" id="rLeanLbs">—</div><div class="calc-result-sub">lbs muscle, bone &amp; organ</div></div>
+          <div class="calc-result-box"><div class="calc-result-lbl">Fat to Lose</div><div class="calc-result-val" id="rFatToLose">—</div><div class="calc-result-sub">lbs to reach goal BF%</div></div>
+        </div>
+
+        <div class="calc-section-lbl">Goal &amp; Timeline</div>
+        <div class="calc-results-grid">
+          <div class="calc-result-box"><div class="calc-result-lbl">Goal Weight</div><div class="calc-result-val" id="rGoalWt">—</div><div class="calc-result-sub">lbs</div></div>
+          <div class="calc-result-box"><div class="calc-result-lbl">Est. Time to Goal</div><div class="calc-result-val" id="rTime">—</div><div class="calc-result-sub" id="rTimeSub">weeks</div></div>
+          <div class="calc-result-box"><div class="calc-result-lbl">Total Deficit Needed</div><div class="calc-result-val" id="rTotalDeficit">—</div><div class="calc-result-sub">calories to burn off fat</div></div>
+        </div>
+
+        <div id="calcNote" class="calc-note"></div>
+
+        <!-- Set As My Goal Button -->
+        <div style="margin-top:20px">
+          <button id="btnApplyGoal" onclick="applyGoal()" style="width:100%;padding:16px;font-size:1rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;background:linear-gradient(135deg,var(--green),var(--cyan));color:#000;border:2px solid var(--green);cursor:pointer;transition:all 0.15s;box-shadow:4px 4px 0 rgba(0,255,65,0.25)" onmouseover="this.style.transform='translate(-2px,-2px)';this.style.boxShadow='6px 6px 0 rgba(0,255,65,0.3)'" onmouseout="this.style.transform='';this.style.boxShadow='4px 4px 0 rgba(0,255,65,0.25)'" >
+            ✓ Set As My Goal
+          </button>
+          <div id="goalApplyMsg" style="margin-top:8px;font-size:0.78rem;text-align:center;min-height:1.4em"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /page-goals -->
+
+
+  <!-- ══════════ PAGE: SETTINGS ══════════ -->
+  <div class="page" id="page-settings">
+
+    <div class="page-hdr">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div class="page-eyebrow">BLUBR</div>
+          <h2 class="page-h2">Settings</h2>
+        </div>
+        <button onclick="showPage('home')" style="background:none;border:none;color:var(--muted);padding:8px;cursor:pointer;font-size:0.8rem;letter-spacing:1px;text-transform:uppercase" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='var(--muted)'">
+          ← Back
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Theme</div>
+      <div class="theme-picker" id="themePicker">
+        <button class="theme-btn" data-theme="retro" onclick="setTheme('retro')">
+          <span class="theme-dots"><span style="background:#00ff41"></span><span style="background:#00ffff"></span><span style="background:#ff00ff"></span></span>Retro
+        </button>
+        <button class="theme-btn" data-theme="slate" onclick="setTheme('slate')">
+          <span class="theme-dots"><span style="background:#60a5fa"></span><span style="background:#818cf8"></span><span style="background:#34d399"></span></span>Slate
+        </button>
+        <button class="theme-btn" data-theme="aurora" onclick="setTheme('aurora')">
+          <span class="theme-dots"><span style="background:#22d3ee"></span><span style="background:#e879f9"></span><span style="background:#4ade80"></span></span>Aurora
+        </button>
+        <button class="theme-btn" data-theme="midnight" onclick="setTheme('midnight')">
+          <span class="theme-dots"><span style="background:#fbbf24"></span><span style="background:#a78bfa"></span><span style="background:#34d399"></span></span>Midnight
+        </button>
+        <button class="theme-btn active" data-theme="clean" onclick="setTheme('clean')">
+          <span class="theme-dots"><span style="background:#0891b2"></span><span style="background:#7c3aed"></span><span style="background:#059669"></span></span>Clean
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Tracking</div>
+      <div class="settings-grid">
+        <div class="setting-item">
+          <label>Weekly Calorie Goal <span style="color:rgba(0,212,255,0.42);font-size:0.56rem">(set via Goals calculator)</span></label>
+          <input type="number" id="sWeekly" value="14000" onchange="saveSettings()">
+        </div>
+        <div class="setting-item"><label>Green Day ≤ (cal) <span style="color:rgba(0,212,255,0.42);font-size:0.56rem">(auto-set by goal)</span></label><input type="number" id="sGreen" value="2000" onchange="saveSettings()"></div>
+        <div class="setting-item"><label>Red Day > (cal) <span style="color:rgba(0,212,255,0.42);font-size:0.56rem">(auto-set by goal)</span></label><input type="number" id="sRed" value="2400" onchange="saveSettings()"></div>
+        <div class="setting-item"><label>Protein Goal (g)</label><input type="number" id="sMacroP" value="150" onchange="saveSettings()"></div>
+        <div class="setting-item"><label>Carbs Goal (g)</label><input type="number" id="sMacroC" value="200" onchange="saveSettings()"></div>
+        <div class="setting-item"><label>Fat Goal (g)</label><input type="number" id="sMacroF" value="65" onchange="saveSettings()"></div>
+      </div>
+      <div style="margin-top:14px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;">
+          <input type="checkbox" id="sMetric" onchange="saveSettings()" style="width:auto;accent-color:var(--cyan)"> Use metric (kg/cm)
+        </label>
+      </div>
+    </div>
+
+    <div class="card" id="weekendBingeCard">
+      <div class="card-title">Calorie Banking <button class="info-btn" onclick="showInfo(this,'Calorie Banking','Automatically saves calories you didn\'t eat on weekdays and adds them to your budget on chosen days (like Friday/Saturday). Great if you want to eat more on weekends while staying on track for the week.')">i</button></div>
+      <div style="font-size:0.75rem;color:var(--muted);margin:-4px 0 14px;line-height:1.6">Bank unspent weekday calories for your weekend. Only calories below your daily goal get banked.</div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;margin-bottom:12px">
+        <input type="checkbox" id="sBingeEnabled" onchange="saveBingeSettings()" style="width:auto;accent-color:var(--cyan)"> Enable Calorie Banking
+      </label>
+      <div id="bingeDayPicker" style="display:none">
+        <div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Add banked calories to:</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" class="binge-day-cb" value="5" onchange="saveBingeSettings()" style="width:auto;accent-color:var(--yellow)"> Friday</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" class="binge-day-cb" value="6" onchange="saveBingeSettings()" style="width:auto;accent-color:var(--yellow)"> Saturday</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer"><input type="checkbox" class="binge-day-cb" value="0" onchange="saveBingeSettings()" style="width:auto;accent-color:var(--yellow)"> Sunday</label>
+        </div>
+        <div id="bankedCalDisplay" style="margin-top:12px;padding:10px;border:2px solid rgba(251,191,36,0.2);background:rgba(251,191,36,0.04);font-size:0.82rem;color:var(--yellow);display:none"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Dashboard Features <button class="info-btn" onclick="showInfo(this,'Dashboard Features','Show or hide individual cards on your dashboard. Turn off features you don\'t use to keep your view clean.')">i</button></div>
+      <div style="font-size:0.75rem;color:var(--muted);margin:-4px 0 14px;line-height:1.6">Toggle dashboard cards on or off.</div>
+      <div class="feature-toggles" id="featureToggles"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Week & Coach <button class="info-btn" onclick="showInfo(this,'Week & Coach Settings','Set which day your tracking week starts on (affects weekly budget and calorie banking). The AI Coach will check in with you on your chosen day each week with personalized advice based on your data.')">i</button></div>
+      <div class="settings-grid">
+        <div class="setting-item">
+          <label>Week Starts On</label>
+          <select id="sWeekStart" onchange="saveWeekCoachSettings()">
+            <option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option>
+            <option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
+          </select>
+        </div>
+        <div class="setting-item">
+          <label>Coach Check-in Day</label>
+          <select id="sCoachDay" onchange="saveWeekCoachSettings()">
+            <option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option>
+            <option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">AI Meal Scanner <button class="info-btn" onclick="showInfo(this,'AI Meal Scanner','Uses Claude AI to estimate calories and macros from a text description or photo of your meal. The API key is synced with your account so you only need to enter it once. Each scan costs roughly $0.01.')">i</button></div>
+      <div style="margin-bottom:8px">
+        <label style="display:block;font-size:0.75rem;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">
+          Claude API Key
+          <span style="font-size:0.6rem;font-weight:400;color:var(--muted2);text-transform:none;letter-spacing:0;margin-left:6px">stored locally only · never synced</span>
+        </label>
+        <div style="display:flex;gap:8px">
+          <input type="password" id="sApiKey" placeholder="sk-ant-api…" oninput="saveApiKey()" style="flex:1;padding:8px 10px;font-size:0.9rem;">
+          <button class="btn-sm" onclick="toggleApiKey()" id="btnShowKey" style="white-space:nowrap;padding:8px 12px;font-size:0.8rem">Show</button>
+        </div>
+        <div style="font-size:0.7rem;color:var(--muted2);margin-top:5px">Get a key at console.anthropic.com · used for AI meal scanning</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Data</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn-export" onclick="exportCSV()">Export CSV</button>
+        <button class="btn-export" onclick="importCSV()">Import CSV</button>
+        <button class="btn-export" onclick="showPage('history')" style="border-color:var(--purple);color:var(--purple);box-shadow:2px 2px 0 var(--purple)">View History</button>
+        <input type="file" id="importInput" accept=".csv" style="display:none">
+      </div>
+    </div>
+
+    <div class="card" id="demoResetCard" style="display:none;border-color:rgba(251,191,36,0.3)">
+      <div class="card-title" style="color:var(--yellow)">Demo Mode</div>
+      <div style="font-size:0.75rem;color:var(--muted);margin:-4px 0 14px;line-height:1.6">You're using the demo account. Reset to regenerate fresh sample data.</div>
+      <button class="btn-export" onclick="resetDemoData()" style="border-color:var(--yellow);color:var(--yellow);box-shadow:2px 2px 0 rgba(251,191,36,0.3);width:100%">Reset Demo Data</button>
+    </div>
+
+    <div class="card" id="accountInfoCard" style="border-color:rgba(0,212,255,0.2)">
+      <div class="card-title" style="color:var(--cyan)">Account</div>
+      <div id="accountInfoContent" style="font-size:0.82rem;line-height:2;color:var(--muted)"></div>
+    </div>
+
+    <div class="card" style="border-color:rgba(239,68,68,0.2)">
+      <div class="card-title" style="color:var(--red)">Danger Zone</div>
+      <button class="btn-export" onclick="authLogout()" id="settingsLogoutBtn" style="border-color:var(--red);color:var(--red);box-shadow:2px 2px 0 var(--red);width:100%">Log Out</button>
+      <button class="btn-export" onclick="confirmResetData()" style="border-color:var(--red);color:var(--red);box-shadow:2px 2px 0 var(--red);width:100%;margin-top:8px">Reset All Data</button>
+    </div>
+
+  </div><!-- /page-settings -->
+
+</div><!-- /container -->
+
+<!-- ── BOTTOM NAV ── -->
+<nav class="bottom-nav" style="display:none">
+  <button class="nav-item active" data-page="home" onclick="showPage('home')">
+    <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+    <span>Home</span>
+  </button>
+  <button class="nav-item" data-page="calendar" onclick="showPage('calendar')">
+    <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+    <span>Log</span>
+  </button>
+
+  <!-- CENTER FAB -->
+  <div class="nav-fab-wrap">
+    <button class="nav-fab" id="btnNavAdd" onclick="toggleAddMenu()" aria-label="Quick Add">
+      <svg class="nav-fab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+  </div>
+
+  <button class="nav-item" data-page="progress" onclick="showPage('progress')">
+    <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+    <span>Progress</span>
+  </button>
+  <button class="nav-item" data-page="goals" onclick="showPage('goals')">
+    <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span>
+    <span>Goals</span>
+  </button>
+</nav>
+
+<!-- ── ADD MENU BACKDROP ── -->
+<div id="addMenuBackdrop" class="add-backdrop" onclick="closeAddMenu()"></div>
+
+<!-- ── ADD MENU SHEET ── -->
+<div id="addMenuSheet" class="add-sheet">
+
+  <!-- TILES VIEW -->
+  <div id="addSheetTiles">
+    <div class="add-sheet-header">
+      <span class="add-sheet-title">QUICK ADD</span>
+      <button class="add-sheet-close" onclick="closeAddMenu()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="add-tiles-grid">
+      <button class="add-tile add-tile-green" onclick="addSheetAction('quicklog')">
+        <div class="add-tile-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </div>
+        <div class="add-tile-name">Quick Log</div>
+        <div class="add-tile-desc">Calories &amp; macros</div>
+      </button>
+      <button class="add-tile add-tile-cyan" onclick="addSheetAction('scanmeal')">
+        <div class="add-tile-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </div>
+        <div class="add-tile-name">Scan Meal</div>
+        <div class="add-tile-desc">AI macro estimate</div>
+      </button>
+      <button class="add-tile add-tile-purple" onclick="addSheetAction('photo')">
+        <div class="add-tile-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </div>
+        <div class="add-tile-name">Progress Photo</div>
+        <div class="add-tile-desc">Track your body</div>
+      </button>
+      <button class="add-tile add-tile-yellow" onclick="addSheetAction('weighin')">
+        <div class="add-tile-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        </div>
+        <div class="add-tile-name">Weigh In</div>
+        <div class="add-tile-desc">Log your weight</div>
+      </button>
+    </div>
+  </div>
+
+  <!-- FORM VIEW -->
+  <div id="addSheetForm" style="display:none">
+    <div class="add-sheet-header">
+      <button class="add-sheet-back" onclick="addSheetBack()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span class="add-sheet-title" id="addFormTitle">Quick Log</span>
+      <button class="add-sheet-close" onclick="closeAddMenu()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="addFormContent"></div>
+  </div>
+
+</div>
+
+<!-- ── SHAME POPUP ── -->
+<div id="shameOverlay" onclick="closeShame()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:5000;align-items:center;justify-content:center;">
+  <div id="shameBox" style="background:#0a0000;border:3px solid var(--red);box-shadow:0 0 40px rgba(255,51,51,0.6),6px 6px 0 rgba(255,51,51,0.4);padding:32px 28px;max-width:420px;width:90%;text-align:center;animation:shameEntrance 0.2s steps(4) forwards;">
+    <div style="font-size:3.5rem;margin-bottom:16px" id="shameEmoji"></div>
+    <div id="shameTitle" style="font-size:1.3rem;color:var(--red);text-shadow:2px 2px 0 #660000,0 0 20px rgba(255,51,51,0.8);margin-bottom:16px;letter-spacing:3px;line-height:1.4;font-weight:700"></div>
+    <div id="shameBody" style="font-size:1rem;color:#ffaaaa;line-height:1.8;margin-bottom:24px"></div>
+    <div style="font-size:0.72rem;color:rgba(255,100,100,0.5);letter-spacing:2px">[ CLICK ANYWHERE TO HIDE IN SHAME ]</div>
+  </div>
+</div>
+
+<!-- ── DAY MODAL ── -->
+<div class="overlay" id="overlay" onclick="overlayClick(event)">
+  <div class="modal">
+    <h3 id="modalTitle">Log Calories</h3>
+    <!-- Day summary -->
+    <div id="modalDaySummary"></div>
+    <!-- Meal list -->
+    <div id="modalMealList"></div>
+    <!-- Add/Edit meal form (toggled) -->
+    <div id="modalMealForm" style="display:none">
+      <div class="modal-field">
+        <label>Meal name</label>
+        <input type="text" id="modalMealName" placeholder="e.g. Chicken salad, Protein shake…">
+      </div>
+      <div class="modal-field">
+        <label>Calories</label>
+        <input type="number" id="modalInput" placeholder="Enter calories (or fill macros below)" min="0" max="99999">
+      </div>
+      <div class="modal-macro-lbl">Macronutrients (optional)</div>
+      <div class="modal-macro-row">
+        <div class="modal-macro-item"><label>Protein (g)</label><input type="number" id="modalProtein" placeholder="0" min="0" max="999" oninput="modalCalcMacros()"></div>
+        <div class="modal-macro-item"><label>Carbs (g)</label><input type="number" id="modalCarbs" placeholder="0" min="0" max="999" oninput="modalCalcMacros()"></div>
+        <div class="modal-macro-item"><label>Fat (g)</label><input type="number" id="modalFat" placeholder="0" min="0" max="999" oninput="modalCalcMacros()"></div>
+      </div>
+    </div>
+    <!-- Notes + refeed (always visible) -->
+    <div class="modal-field">
+      <label>Notes (optional)</label>
+      <textarea id="modalNote" placeholder="What did you eat? How did you feel?"></textarea>
+    </div>
+    <label class="modal-check"><input type="checkbox" id="modalRefeed"> Mark as refeed / planned cheat day</label>
+    <div class="modal-btns" id="modalBtns">
+      <button class="btn-cancel" onclick="closeModal()">Close</button>
+      <button class="btn-save" id="btnModalAdd" onclick="showModalMealForm(-1)">+ Add Meal</button>
+    </div>
+  </div>
+</div>
+
+  <!-- ── COACH MODAL ── -->
+  <div class="overlay" id="coachOverlay" onclick="coachOverlayClick(event)" style="display:none">
+    <div class="modal" style="max-width:480px">
+      <h3 id="coachTitle" style="color:var(--cyan)">Weekly Check-in</h3>
+      <div id="coachContent"></div>
+      <div class="modal-btns" id="coachBtns"></div>
+    </div>
+  </div>
+
+  <!-- ── MISSED DAY RECOVERY ── -->
+  <div class="overlay" id="recoveryOverlay" style="display:none">
+    <div class="modal" style="max-width:500px">
+      <h3 style="color:var(--yellow)">Missed Days</h3>
+      <div style="font-size:0.82rem;color:var(--muted);margin-bottom:14px">Fill in the gaps to keep your data accurate.</div>
+      <div id="recoveryDays"></div>
+      <div class="modal-btns">
+        <button class="btn-save" onclick="closeRecoveryModal()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="resetOverlay" style="display:none">
+    <div class="modal" style="max-width:400px;text-align:center">
+      <h3 style="color:var(--red);margin-bottom:12px">Reset All Data?</h3>
+      <div style="font-size:0.85rem;color:var(--muted);line-height:1.7;margin-bottom:8px">This will <strong style="color:var(--red)">permanently delete</strong> all of your:</div>
+      <div style="font-size:0.82rem;color:var(--text);line-height:2;margin-bottom:16px;text-align:left;padding:0 20px">
+        • Calorie &amp; macro logs<br>
+        • Individual meals<br>
+        • Weight entries<br>
+        • Progress photos<br>
+        • Food presets<br>
+        • Notes &amp; refeed days
+      </div>
+      <div style="font-size:0.82rem;color:var(--muted);line-height:1.6;margin-bottom:20px">You will be starting completely fresh.<br><strong style="color:var(--red)">This cannot be undone.</strong></div>
+      <div style="font-size:0.78rem;color:var(--muted2);margin-bottom:16px">Your settings, goals, and account will be kept.</div>
+      <div class="modal-btns" style="gap:10px">
+        <button class="btn-cancel" onclick="cancelResetData()">Cancel</button>
+        <button class="btn-save" onclick="executeResetData()" style="background:var(--red);border-color:var(--red)">Yes, Delete Everything</button>
+      </div>
+    </div>
+  </div>
+
+<script src="app.js?v=23"></script>
+<script src="capacitor-bridge.js"></script>
+<script>
+if ('serviceWorker' in navigator && !window.Capacitor) {
+  navigator.serviceWorker.register('/sw.js');
+}
+</script>
+</body>
+</html>
