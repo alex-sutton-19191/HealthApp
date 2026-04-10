@@ -903,7 +903,7 @@
           </div>
           <div class="add-form-field">
             <label>Calories</label>
-            <input type="number" id="addFormCal" placeholder="0" min="0" max="99999" class="add-form-big-input" autofocus>
+            <input type="number" id="addFormCal" placeholder="0" min="0" max="99999" class="add-form-big-input" autofocus oninput="this.dataset.manual=this.value?'1':''">
           </div>
           <div class="add-form-macros">
             <div class="add-form-macro-item"><label>Protein (g)</label><input type="number" id="addFormP" placeholder="0" min="0" oninput="addFormCalcMacros()"></div>
@@ -977,9 +977,9 @@
     const total = Math.round(p*4 + c*4 + f*9);
     const hint  = document.getElementById('addFormMacroHint');
     if (hint) hint.textContent = total > 0 ? total : '—';
-    // Auto-fill calories from macros if field is empty
+    // Auto-fill calories from macros unless user manually typed a value
     const calEl = document.getElementById('addFormCal');
-    if (calEl && !calEl.value && total > 0) calEl.value = total;
+    if (calEl && !calEl.dataset.manual && total > 0) calEl.value = total;
   }
 
   function submitQuickLog() {
