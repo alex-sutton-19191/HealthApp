@@ -3336,6 +3336,92 @@ Round all numbers to whole integers. Use your best judgment.`
   function closeCoachModal() { document.getElementById('coachOverlay').style.display = 'none'; }
   function coachOverlayClick(e) { if (e.target.id === 'coachOverlay') closeCoachModal(); }
 
+  function showCoachCard() {
+    const coach = ls(COACH_KEY, []);
+    const last = coach.length > 0 ? coach[coach.length - 1] : null;
+    // No saved advice yet → run a fresh check-in
+    if (!last) { showCoachModal(); return; }
+
+    const overlay = document.getElementById('coachOverlay');
+    overlay.style.display = 'flex';
+    const content = document.getElementById('coachContent');
+    const btns = document.getElementById('coachBtns');
+
+    const s = getSettings();
+    const currentCal = Math.round(s.weekly / 7);
+    const hasChanges = last.recommendedCal && last.recommendedCal !== currentCal;
+
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const dp = (last.date || '').split('-');
+    const dateLabel = dp.length === 3 ? `${monthNames[parseInt(dp[1])-1]} ${parseInt(dp[2])}` : last.date || '';
+
+    let html = `<div style="font-size:0.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Check-in from ${escHtml(dateLabel)}${last.accepted ? ' · Applied' : ''}</div>`;
+    if (last.summary) {
+      html += `<div style="padding:12px;border:2px solid rgba(0,212,255,0.15);background:rgba(0,212,255,0.03);margin-bottom:12px;font-size:0.88rem;line-height:1.7">${escHtml(last.summary)}</div>`;
+    }
+
+    if (hasChanges && !last.accepted) {
+      html += `<div style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Recommended Changes</div>`;
+      html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div style="text-align:center;padding:10px;border:1px solid rgba(255,255,255,0.1)">
+          <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase">Current</div>
+          <div style="font-size:1.2rem;font-weight:700">${currentCal.toLocaleString()}</div>
+          <div style="font-size:0.65rem;color:var(--muted)">cal/day</div>
+        </div>
+        <div style="text-align:center;padding:10px;border:2px solid var(--cyan);background:rgba(0,212,255,0.04)">
+          <div style="font-size:0.65rem;color:var(--cyan);text-transform:uppercase">Recommended</div>
+          <div style="font-size:1.2rem;font-weight:700;color:var(--cyan)">${last.recommendedCal.toLocaleString()}</div>
+          <div style="font-size:0.65rem;color:var(--muted)">cal/day</div>
+        </div>
+      </div>`;
+      if (last.adjustmentReason) html += `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;font-style:italic">${escHtml(last.adjustmentReason)}</div>`;
+    }
+
+    if (last.tip) {
+      html += `<div style="padding:10px 12px;border-left:3px solid var(--green);background:rgba(16,185,129,0.04);font-size:0.82rem;line-height:1.6;color:var(--text)">
+        <span style="font-size:0.62rem;color:var(--green);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Tip of the week</span>
+        ${escHtml(last.tip)}
+      </div>`;
+    }
+
+    content.innerHTML = html;
+    content.dataset.advice = JSON.stringify(last);
+
+    if (hasChanges && !last.accepted) {
+      btns.innerHTML = `<button class="btn-cancel" onclick="closeCoachModal()">Close</button>
+        <button class="btn-save" onclick="acceptCoachSaved()">Apply Changes</button>`;
+    } else {
+      btns.innerHTML = `<button class="btn-save" onclick="closeCoachModal()">Close</button>`;
+    }
+  }
+
+  function acceptCoachSaved() {
+    const content = document.getElementById('coachContent');
+    const advice = JSON.parse(content.dataset.advice || '{}');
+    if (advice.recommendedCal) {
+      const existing = ls(SET_KEY, {});
+      existing.weekly = advice.recommendedCal * 7;
+      existing.green = advice.recommendedCal;
+      existing.red = Math.round(advice.recommendedCal * 1.2);
+      if (advice.recommendedP) existing.macroP = advice.recommendedP;
+      if (advice.recommendedC) existing.macroC = advice.recommendedC;
+      if (advice.recommendedF) existing.macroF = advice.recommendedF;
+      lsSet(SET_KEY, existing);
+      const sWeekly = document.getElementById('sWeekly'); if (sWeekly) sWeekly.value = existing.weekly;
+      const sMacroP = document.getElementById('sMacroP'); if (sMacroP) sMacroP.value = existing.macroP;
+      const sMacroC = document.getElementById('sMacroC'); if (sMacroC) sMacroC.value = existing.macroC;
+      const sMacroF = document.getElementById('sMacroF'); if (sMacroF) sMacroF.value = existing.macroF;
+      const sGreen = document.getElementById('sGreen'); if (sGreen) sGreen.value = existing.green;
+      const sRed = document.getElementById('sRed'); if (sRed) sRed.value = existing.red;
+      // Flip the saved entry to accepted so we don't offer again
+      const coach = ls(COACH_KEY, []);
+      if (coach.length > 0) { coach[coach.length - 1].accepted = true; lsSet(COACH_KEY, coach); }
+    }
+    closeCoachModal();
+    refreshAll();
+    showToast('Goal updated by coach');
+  }
+
   /* ── MISSED DAY RECOVERY ── */
   function checkMissedDays() {
     const data = getData();
@@ -3511,14 +3597,17 @@ Round all numbers to whole integers. Use your best judgment.`
 
     let html = `<div style="display:flex;align-items:center;gap:12px">
       <div style="font-size:2rem;color:var(--cyan)">&#129504;</div>
-      <div style="flex:1">
+      <div style="flex:1;min-width:0">
         <div style="font-size:0.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Weekly Coach</div>
-        <div style="font-size:0.88rem;font-weight:600">${daysUntil === 0 ? 'Check-in today!' : `Next: ${coachDayName} (${daysUntil} day${daysUntil>1?'s':''})`}</div>
-        ${last ? `<div style="font-size:0.72rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(last.tip || last.summary || '').slice(0,60)}...</div>` : ''}
+        <div style="font-size:0.88rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${daysUntil === 0 ? 'Check-in today!' : `Next: ${coachDayName} (${daysUntil} day${daysUntil>1?'s':''})`}</div>
+        ${last ? `<div style="font-size:0.72rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(last.tip || last.summary || '').slice(0,60)}${(last.tip||last.summary||'').length>60?'...':''}</div>` : ''}
       </div>
     </div>`;
 
-    document.getElementById('coachCountdownContent').innerHTML = html;
+    const contentEl = document.getElementById('coachCountdownContent');
+    contentEl.innerHTML = html;
+    contentEl.style.cursor = 'pointer';
+    contentEl.onclick = showCoachCard;
   }
 
   /* ── INIT ── */
