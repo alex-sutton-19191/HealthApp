@@ -606,6 +606,16 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--c
 .btn-del    { background: transparent; color: var(--red); border-color: var(--red) !important; box-shadow: 2px 2px 0 rgba(255,51,51,0.35); }
 .btn-del:hover { background: rgba(255,51,51,0.12); transform: translate(-1px,-1px); }
 
+/* Modal mode tabs (Manual / AI) */
+.modal-mode-tabs { display: flex; gap: 3px; margin-bottom: 12px; padding: 3px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); }
+.modal-mode-tab { flex: 1; padding: 7px 10px; border: 0; background: transparent; color: var(--muted); font-family: 'Outfit', sans-serif; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; cursor: pointer; transition: all 0.1s; display: inline-flex; align-items: center; justify-content: center; }
+.modal-mode-tab:hover { color: var(--text); }
+.modal-mode-tab.active { background: var(--purple); color: #fff; box-shadow: 0 0 10px rgba(255,0,255,0.35); }
+.modal-mode-tab.active.ai-tab { background: var(--cyan); color: #000; box-shadow: 0 0 10px rgba(0,212,255,0.35); }
+.btn-modal-ai-estimate { width: 100%; padding: 10px; background: var(--cyan); color: #000; border: 2px solid var(--cyan); font-family: 'Outfit', sans-serif; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; cursor: pointer; box-shadow: 3px 3px 0 rgba(0,212,255,0.3); display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.1s; }
+.btn-modal-ai-estimate:hover:not(:disabled) { transform: translate(-1px,-1px); box-shadow: 4px 4px 0 rgba(0,212,255,0.3); }
+.btn-modal-ai-estimate:disabled { opacity: 0.6; cursor: not-allowed; }
+
 /* Modal meal items */
 .btn-modal-meal-action {
   background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--muted);

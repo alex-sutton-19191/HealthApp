@@ -2437,6 +2437,9 @@ Round all numbers to whole integers. Use your best judgment.`
       btns.innerHTML = `
         <button class="btn-cancel" onclick="closeModal()">Close</button>
         <button class="btn-save" onclick="showModalMealForm(-1)">+ Add Meal</button>`;
+    } else if (mode === 'ai-form') {
+      btns.innerHTML = `
+        <button class="btn-cancel" onclick="cancelModalMealForm()">Cancel</button>`;
     } else {
       btns.innerHTML = `
         <button class="btn-cancel" onclick="cancelModalMealForm()">Cancel</button>
@@ -2448,6 +2451,17 @@ Round all numbers to whole integers. Use your best judgment.`
     _modalEditIdx = idx;
     const form = document.getElementById('modalMealForm');
     form.style.display = 'block';
+    // Reset AI state every open
+    const aiDesc = document.getElementById('modalAiDesc'); if (aiDesc) aiDesc.value = '';
+    const aiPhoto = document.getElementById('modalAiPhoto'); if (aiPhoto) aiPhoto.value = '';
+    const aiPreview = document.getElementById('modalAiPhotoPreview'); if (aiPreview) aiPreview.innerHTML = '';
+    const aiLabel = document.getElementById('modalAiPhotoLabel'); if (aiLabel) aiLabel.textContent = 'Photo';
+    const aiStatus = document.getElementById('modalAiStatus'); if (aiStatus) aiStatus.innerHTML = '';
+    // Hide tabs when editing — AI doesn't apply to existing meals
+    const tabs = document.getElementById('modalMealFormTabs');
+    if (tabs) tabs.style.display = (idx >= 0) ? 'none' : 'flex';
+    // Always start in manual mode
+    _setModalMealMode('manual');
     if (idx >= 0) {
       const meals = ls(MEALS_KEY, {});
       const meal = (meals[modalKey] || [])[idx];
@@ -2465,8 +2479,116 @@ Round all numbers to whole integers. Use your best judgment.`
       document.getElementById('modalCarbs').value = '';
       document.getElementById('modalFat').value = '';
     }
-    _renderModalButtons('form');
     setTimeout(() => document.getElementById('modalMealName').focus(), 50);
+  }
+
+  function _setModalMealMode(mode) {
+    const manualBtn  = document.getElementById('modalModeManualBtn');
+    const aiBtn      = document.getElementById('modalModeAiBtn');
+    const manualForm = document.getElementById('modalMealFormManual');
+    const aiForm     = document.getElementById('modalMealFormAi');
+    if (!manualBtn || !aiBtn || !manualForm || !aiForm) return;
+    if (mode === 'ai') {
+      manualBtn.classList.remove('active');
+      aiBtn.classList.add('active', 'ai-tab');
+      manualForm.style.display = 'none';
+      aiForm.style.display = 'block';
+      // Hide Save button while in AI mode — must estimate first
+      _renderModalButtons('ai-form');
+      setTimeout(() => document.getElementById('modalAiDesc')?.focus(), 50);
+    } else {
+      aiBtn.classList.remove('active', 'ai-tab');
+      manualBtn.classList.add('active');
+      manualForm.style.display = 'block';
+      aiForm.style.display = 'none';
+      _renderModalButtons('form');
+    }
+  }
+
+  function _handleModalAiPhoto(input) {
+    const preview = document.getElementById('modalAiPhotoPreview');
+    const label   = document.getElementById('modalAiPhotoLabel');
+    if (input.files && input.files[0]) {
+      const url = URL.createObjectURL(input.files[0]);
+      preview.innerHTML = `<img src="${url}" style="width:62px;height:62px;object-fit:cover;border:2px solid var(--cyan);display:block">`;
+      label.textContent = 'Change';
+    }
+  }
+
+  async function _modalAiEstimate() {
+    const apiKey = _getApiKey();
+    const status = document.getElementById('modalAiStatus');
+    const btn    = document.getElementById('modalAiEstimateBtn');
+
+    if (!apiKey) {
+      status.innerHTML = '<span style="color:var(--yellow)">⚠ Add your Claude API key in Settings first.</span>';
+      return;
+    }
+
+    const desc       = (document.getElementById('modalAiDesc').value || '').trim();
+    const photoInput = document.getElementById('modalAiPhoto');
+    const hasPhoto   = photoInput.files && photoInput.files[0];
+
+    if (!desc && !hasPhoto) {
+      status.innerHTML = '<span style="color:var(--yellow)">⚠ Add a photo or describe what you ate.</span>';
+      return;
+    }
+
+    btn.disabled  = true;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Estimating…';
+    status.innerHTML = '';
+
+    try {
+      const content = [];
+      if (hasPhoto) {
+        const base64 = await _compressImage(photoInput.files[0], 1024, 0.85);
+        content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } });
+      }
+      content.push({ type: 'text', text:
+        `Estimate the macronutrients for this meal${desc ? ': ' + desc : ''}.
+
+Respond with ONLY a JSON object — no other text, no markdown:
+{"calories":450,"protein":25,"carbs":40,"fat":18,"notes":"brief what-it-is summary"}
+
+Round all numbers to whole integers.` });
+
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 300, messages: [{ role: 'user', content }] })
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error?.message || `API error ${resp.status}`);
+      }
+
+      const raw   = await resp.json();
+      const text  = raw.content[0].text.trim();
+      const match = text.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error('Unexpected response format');
+      const m = JSON.parse(match[0]);
+
+      // Fill manual fields so user can review/edit before saving
+      document.getElementById('modalMealName').value = m.notes || 'AI Scan';
+      document.getElementById('modalInput').value    = m.calories || '';
+      document.getElementById('modalProtein').value  = m.protein || '';
+      document.getElementById('modalCarbs').value    = m.carbs || '';
+      document.getElementById('modalFat').value      = m.fat || '';
+
+      _setModalMealMode('manual');
+      showToast(`AI estimated ${m.calories} cal — review and save`);
+    } catch (e) {
+      status.innerHTML = `<span style="color:var(--red)">✗ ${e.message}</span>`;
+    } finally {
+      btn.disabled  = false;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Estimate Macros with AI';
+    }
   }
 
   function cancelModalMealForm() {
