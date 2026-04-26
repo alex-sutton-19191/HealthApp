@@ -677,19 +677,47 @@
     <div id="modalMealList"></div>
     <!-- Add/Edit meal form (toggled) -->
     <div id="modalMealForm" style="display:none">
-      <div class="modal-field">
-        <label>Meal name</label>
-        <input type="text" id="modalMealName" placeholder="e.g. Chicken salad, Protein shake…">
+      <!-- Mode tabs (hidden when editing an existing meal) -->
+      <div id="modalMealFormTabs" class="modal-mode-tabs">
+        <button type="button" class="modal-mode-tab active" id="modalModeManualBtn" onclick="_setModalMealMode('manual')">Manual</button>
+        <button type="button" class="modal-mode-tab" id="modalModeAiBtn" onclick="_setModalMealMode('ai')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11" style="vertical-align:-1px;margin-right:3px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          AI Describe
+        </button>
       </div>
-      <div class="modal-field">
-        <label>Calories</label>
-        <input type="number" id="modalInput" placeholder="Enter calories (or fill macros below)" min="0" max="99999">
+      <!-- Manual fields -->
+      <div id="modalMealFormManual">
+        <div class="modal-field">
+          <label>Meal name</label>
+          <input type="text" id="modalMealName" placeholder="e.g. Chicken salad, Protein shake…">
+        </div>
+        <div class="modal-field">
+          <label>Calories</label>
+          <input type="number" id="modalInput" placeholder="Enter calories (or fill macros below)" min="0" max="99999">
+        </div>
+        <div class="modal-macro-lbl">Macronutrients (optional)</div>
+        <div class="modal-macro-row">
+          <div class="modal-macro-item"><label>Protein (g)</label><input type="number" id="modalProtein" placeholder="0" min="0" max="999" oninput="modalCalcMacros()"></div>
+          <div class="modal-macro-item"><label>Carbs (g)</label><input type="number" id="modalCarbs" placeholder="0" min="0" max="999" oninput="modalCalcMacros()"></div>
+          <div class="modal-macro-item"><label>Fat (g)</label><input type="number" id="modalFat" placeholder="0" min="0" max="999" oninput="modalCalcMacros()"></div>
+        </div>
       </div>
-      <div class="modal-macro-lbl">Macronutrients (optional)</div>
-      <div class="modal-macro-row">
-        <div class="modal-macro-item"><label>Protein (g)</label><input type="number" id="modalProtein" placeholder="0" min="0" max="999" oninput="modalCalcMacros()"></div>
-        <div class="modal-macro-item"><label>Carbs (g)</label><input type="number" id="modalCarbs" placeholder="0" min="0" max="999" oninput="modalCalcMacros()"></div>
-        <div class="modal-macro-item"><label>Fat (g)</label><input type="number" id="modalFat" placeholder="0" min="0" max="999" oninput="modalCalcMacros()"></div>
+      <!-- AI Describe fields -->
+      <div id="modalMealFormAi" style="display:none">
+        <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px">
+          <label for="modalAiPhoto" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;width:62px;min-width:62px;height:62px;border:2px dashed rgba(0,212,255,0.35);cursor:pointer;color:var(--cyan);font-size:0.62rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;background:rgba(0,212,255,0.04)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span id="modalAiPhotoLabel">Photo</span>
+          </label>
+          <input type="file" id="modalAiPhoto" accept="image/*" style="display:none" onchange="_handleModalAiPhoto(this)">
+          <div id="modalAiPhotoPreview" style="flex-shrink:0"></div>
+          <textarea id="modalAiDesc" placeholder="What did you eat? (e.g. 2 scrambled eggs, toast with butter)" rows="2" style="flex:1;padding:8px 10px;font-size:0.9rem;font-family:'Outfit',sans-serif;resize:none;height:62px;line-height:1.45;background:var(--input);border:2px solid rgba(255,255,255,0.18);color:var(--text)"></textarea>
+        </div>
+        <button type="button" class="btn-modal-ai-estimate" id="modalAiEstimateBtn" onclick="_modalAiEstimate()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Estimate Macros with AI
+        </button>
+        <div id="modalAiStatus" style="margin-top:8px;font-size:0.8rem;line-height:1.5;min-height:0"></div>
       </div>
     </div>
     <!-- Notes + refeed (always visible) -->
