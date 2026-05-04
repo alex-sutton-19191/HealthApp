@@ -695,14 +695,19 @@
     const cur = new Date(wStart);
     while (cur < today) {
       const key = makeKey(cur.getFullYear(), cur.getMonth(), cur.getDate());
+      const actual = data[key];
       if (!s.weekendBinge.days.includes(cur.getDay())) {
-        const actual = data[key];
         if (actual !== undefined && actual < dailyGoal) {
           banked += (dailyGoal - actual);
+        }
+      } else {
+        if (actual !== undefined && actual > dailyGoal) {
+          banked -= (actual - dailyGoal);
         }
       }
       cur.setDate(cur.getDate() + 1);
     }
+    banked = Math.max(0, banked);
 
     let remainingDays = 0;
     const weekEnd = new Date(wStart); weekEnd.setDate(weekEnd.getDate() + 7);
